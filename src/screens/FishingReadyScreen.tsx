@@ -10,23 +10,30 @@ interface Props {
   location: string;
   onOpenLocation: () => void;
   onStartFight: () => void;
+  connecting?: boolean;
+  error?: string | null;
 }
 
-export function FishingReadyScreen({ location, onOpenLocation, onStartFight }: Props) {
+export function FishingReadyScreen({ location, onOpenLocation, onStartFight, connecting, error }: Props) {
   return (
     <View style={styles.container}>
       <LocationPill location={location} onPress={onOpenLocation} />
       <View style={styles.center}>
         <View style={styles.buttonWrap}>
-          <RippleRings />
-          <PressScale onPress={onStartFight} style={styles.fishOn} activeScale={0.96}>
-            <Text style={styles.fishOnTitle}>Fish On</Text>
-            <Text style={styles.fishOnSubtitle}>Start the fight</Text>
+          {!connecting ? <RippleRings /> : null}
+          <PressScale onPress={onStartFight} style={styles.fishOn} activeScale={0.96} disabled={connecting}>
+            <Text style={styles.fishOnTitle}>{connecting ? 'Connecting' : 'Fish On'}</Text>
+            <Text style={styles.fishOnSubtitle}>{connecting ? 'Talking to DragonFly' : 'Start the fight'}</Text>
           </PressScale>
         </View>
         <View style={styles.copy}>
-          <Text style={styles.heading}>Ready when you are</Text>
-          <Text style={styles.body}>Tap Fish On the moment the fish takes — we&rsquo;ll time the fight for you.</Text>
+          <Text style={styles.heading}>{connecting ? 'One moment' : 'Ready when you are'}</Text>
+          <Text style={styles.body}>
+            {connecting
+              ? 'Connecting to your DragonFly device…'
+              : "Tap Fish On the moment the fish takes — we’ll time the fight for you."}
+          </Text>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
       </View>
     </View>
@@ -89,6 +96,13 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: colors.textSecondary,
     marginTop: 6,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  error: {
+    fontSize: 12.5,
+    color: colors.danger,
+    marginTop: 14,
     lineHeight: 18,
     textAlign: 'center',
   },

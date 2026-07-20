@@ -11,22 +11,25 @@ interface Props {
   location: string;
   elapsed: number;
   onLandFish: () => void;
+  awaitingEnd?: boolean;
+  stopping?: boolean;
 }
 
-export function FishingActiveScreen({ location, elapsed, onLandFish }: Props) {
+export function FishingActiveScreen({ location, elapsed, onLandFish, awaitingEnd, stopping }: Props) {
+  const waiting = Boolean(awaitingEnd || stopping);
   return (
     <View style={styles.container}>
       <LocationBadge location={location} />
       <View style={styles.center}>
-        <Text style={styles.eyebrow}>Fight in progress</Text>
+        <Text style={styles.eyebrow}>{waiting ? 'Ending fight' : 'Fight in progress'}</Text>
         <Text style={styles.timer}>{fmtElapsed(elapsed)}</Text>
         <View style={styles.tensionWrap}>
           <TensionLine />
         </View>
-        <Text style={styles.subtext}>Line tension holding</Text>
+        <Text style={styles.subtext}>{waiting ? 'Waiting for DragonFly to finish…' : 'Line tension holding'}</Text>
       </View>
-      <PressScale onPress={onLandFish} style={styles.landedButton} activeScale={0.98}>
-        <Text style={styles.landedLabel}>Landed</Text>
+      <PressScale onPress={onLandFish} style={styles.landedButton} activeScale={0.98} disabled={waiting}>
+        <Text style={styles.landedLabel}>{waiting ? 'Ending…' : 'Landed'}</Text>
       </PressScale>
     </View>
   );

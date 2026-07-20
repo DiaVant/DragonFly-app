@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Catch, CatchForm, Phase, Route, Tab } from '../types';
-import { fmtDate, fmtTime, scoreForFight } from '../lib/format';
+import { fmtDate, fmtTime } from '../lib/format';
 import { DEFAULT_LOCATION, loadCatches, loadLocation, saveCatches, saveLocation, seedCatches } from '../lib/storage';
+import { useBleSession } from './useBleSession';
 
 export const LOCATIONS = ['Lake Sammamish', 'Lake Washington', 'Snoqualmie River', 'Green Lake', 'Lake Union'];
 
@@ -24,6 +25,8 @@ export function useDragonflyState() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scoreTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedRef = useRef(0);
+
+  const ble = useBleSession();
 
   useEffect(() => {
     let cancelled = false;
@@ -86,9 +89,11 @@ export function useDragonflyState() {
     }, 40);
   }, []);
 
-  const startFight = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
+  const startFight = useCallback(async () => {
     setTab('fishing');
+    const ok = await ble.start();
+    if (!ok) return; // ble.error is set; stays on the Ready screen.
+    if (timerRef.current) clearInterval(timerRef.current);
     setPhase('active');
     elapsedRef.current = 0;
     setElapsed(0);
@@ -96,23 +101,41 @@ export function useDragonflyState() {
       elapsedRef.current += 1;
       setElapsed(elapsedRef.current);
     }, 1000);
-  }, []);
+  }, [ble]);
 
   const landFish = useCallback(() => {
+    ble.stop();
+  }, [ble]);
+
+  // The BLE session resolves the real score asynchronously (only once END arrives) — build
+  // the Catch and move to the score screen when it does.
+  useEffect(() => {
+    if (ble.finalScore == null) return;
     if (timerRef.current) clearInterval(timerRef.current);
     const sec = elapsedRef.current;
-    const score = scoreForFight(sec);
     const now = new Date();
     const cat: Catch = {
-      id: `c${Date.now()}`, species: '', score, fightSeconds: sec,
+      id: `c${Date.now()}`, species: '', score: ble.finalScore, fightSeconds: sec,
       size: '', weight: '', location, date: fmtDate(now), time: fmtTime(now), photo: false,
     };
     setPhase('score');
     setLastCatch(cat);
     setScoreDisplay(0);
     setForm(EMPTY_FORM);
-    animateScore(score);
-  }, [location, animateScore]);
+    animateScore(ble.finalScore);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ble.finalScore]);
+
+  // Any BLE session failure (connect, write, disconnect, invalid data, COUNT mismatch, save
+  // failure) aborts without a score and returns the user to the Ready screen to retry.
+  useEffect(() => {
+    if (!ble.error) return;
+    if (phase !== 'ready') {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setPhase('ready');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ble.error]);
 
   const gotoDetails = useCallback(() => {
     setPhase('details');
@@ -191,12 +214,22 @@ export function useDragonflyState() {
     hydrated,
     tab, phase, location, elapsed, locOpen, lastCatch, scoreDisplay, form,
     detailView, editing, catches, route, locations: LOCATIONS,
+    ble: {
+      connecting: ble.starting || ble.connectionStatus === 'connecting',
+      awaitingEnd: ble.awaitingEnd,
+      stopping: ble.stopping,
+      error: ble.error,
+      connectionStatus: ble.connectionStatus,
+      setupConnecting: ble.connecting,
+      connectError: ble.connectError,
+    },
     actions: {
       goHome, goFishing, goJourney, openLoc, closeLoc, setLoc,
       startFight, landFish, gotoDetails,
       onSpecies, onSize, onWeight, togglePhoto,
       saveCatch, skipSave, cancelEdit,
       openDetail, closeDetail, editCatch, deleteCatch, startFishing,
+      connectDevice: ble.connect,
     },
   };
 }

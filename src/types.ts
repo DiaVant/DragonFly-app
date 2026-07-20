@@ -21,3 +21,16 @@ export interface CatchForm {
   weight: string;
   photo: boolean;
 }
+
+export type BleConnectionStatus = 'disconnected' | 'connecting' | 'connected';
+
+export interface DragonflySessionFile {
+  startedAt: string;
+  stoppedAt: string | null;
+  expectedCount: number | null;
+  sampleCount: number;
+  values: number[];
+  average: number | null;
+  finalScore: number | null;
+  error?: string;
+}

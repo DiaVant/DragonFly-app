@@ -27,16 +27,35 @@ export function DragonflyApp() {
   let content: React.ReactNode = null;
   switch (route) {
     case 'home':
-      content = <HomeScreen />;
+      content = (
+        <HomeScreen
+          connectionStatus={state.ble.connectionStatus}
+          connecting={state.ble.setupConnecting}
+          error={state.ble.connectError}
+          onConnect={actions.connectDevice}
+        />
+      );
       break;
     case 'ready':
       content = (
-        <FishingReadyScreen location={state.location} onOpenLocation={actions.openLoc} onStartFight={actions.startFight} />
+        <FishingReadyScreen
+          location={state.location}
+          onOpenLocation={actions.openLoc}
+          onStartFight={actions.startFight}
+          connecting={state.ble.connecting}
+          error={state.ble.error}
+        />
       );
       break;
     case 'active':
       content = (
-        <FishingActiveScreen location={state.location} elapsed={state.elapsed} onLandFish={actions.landFish} />
+        <FishingActiveScreen
+          location={state.location}
+          elapsed={state.elapsed}
+          onLandFish={actions.landFish}
+          awaitingEnd={state.ble.awaitingEnd}
+          stopping={state.ble.stopping}
+        />
       );
       break;
     case 'score':

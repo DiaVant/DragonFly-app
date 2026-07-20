@@ -21,8 +21,3 @@ export function fmtTime(d: Date): string {
   h = h % 12 || 12;
   return `${h}:${m} ${ap}`;
 }
-
-export function scoreForFight(seconds: number): number {
-  const raw = 58 + seconds * 1.05 + Math.random() * 7;
-  return Math.max(52, Math.min(97, Math.round(raw)));
-}
