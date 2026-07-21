@@ -1,156 +1,186 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
-import { colors } from '../theme/colors';
-import { fonts } from '../theme/fonts';
-import { ScoreWings } from '../components/ScoreWings';
-import { PressScale } from '../components/PressScale';
-import { Pressable } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Screen, PrimaryButton, SecondaryButton, Metric, TensionChart, StatusChip } from '../ui';
+import { colors, fonts, motion, radii, shadows } from '../theme';
+import type { Catch } from '../types';
+import type { AiReviewStatus } from '../hooks/useDragonflyState';
 
 interface Props {
   scoreDisplay: number;
-  lastFight: string;
-  lastLoc: string;
+  catchItem: Catch | null;
+  aiReviewStatus?: AiReviewStatus;
   onAddDetails: () => void;
   onSkip: () => void;
 }
 
-export function CatchScoreScreen({ scoreDisplay, lastFight, lastLoc, onAddDetails, onSkip }: Props) {
+/** Landed-catch celebration + coaching summary. Lost fights use FightLostScreen. */
+export function CatchScoreScreen({
+  scoreDisplay,
+  catchItem,
+  aiReviewStatus = 'idle',
+  onAddDetails,
+  onSkip,
+}: Props) {
   const scoreScale = useRef(new Animated.Value(0.92)).current;
   const scoreOpacity = useRef(new Animated.Value(0)).current;
-  const statsOpacity = useRef(new Animated.Value(0)).current;
-  const statsY = useRef(new Animated.Value(16)).current;
 
   useEffect(() => {
+    scoreScale.setValue(0.92);
+    scoreOpacity.setValue(0);
     Animated.parallel([
-      Animated.timing(scoreScale, { toValue: 1, duration: 600, useNativeDriver: true }),
-      Animated.timing(scoreOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.timing(scoreScale, { toValue: 1, duration: motion.scoreReveal, useNativeDriver: true }),
+      Animated.timing(scoreOpacity, { toValue: 1, duration: motion.scoreReveal, useNativeDriver: true }),
     ]).start();
-    Animated.parallel([
-      Animated.timing(statsOpacity, { toValue: 1, duration: 600, delay: 300, useNativeDriver: true }),
-      Animated.timing(statsY, { toValue: 0, duration: 600, delay: 300, useNativeDriver: true }),
-    ]).start();
-  }, [scoreScale, scoreOpacity, statsOpacity, statsY]);
+  }, [scoreScale, scoreOpacity, catchItem?.scoreSource, catchItem?.score]);
+
+  const hasSamples = (catchItem?.sampleCount ?? 0) > 0 || (catchItem?.relativeTensionSeries?.length ?? 0) > 0;
+  const series = catchItem?.relativeTensionSeries ?? [];
+  const chipLabel =
+    aiReviewStatus === 'loading'
+      ? 'AI reviewing'
+      : catchItem?.scoreSource === 'openai'
+        ? 'AI coach scored'
+        : 'Catch scored';
+  const scoreHint =
+    aiReviewStatus === 'loading'
+      ? 'AI coach is reviewing your fight…'
+      : catchItem?.scoreSource === 'openai'
+        ? catchItem.scoreRationale || 'Scored by AI coach from relative tension control'
+        : aiReviewStatus === 'error'
+          ? 'AI unavailable — averaged from DragonFly samples'
+          : 'Averaged from DragonFly samples';
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.eyebrow}>Your Catch Score</Text>
-      <View style={styles.center}>
-        <View style={styles.wingsWrap} pointerEvents="none">
-          <ScoreWings />
-        </View>
-        <Animated.View style={{ opacity: scoreOpacity, transform: [{ scale: scoreScale }], alignItems: 'center' }}>
-          <Text style={styles.score}>{scoreDisplay}</Text>
-          <Text style={styles.scoreLabel}>Catch Score</Text>
-        </Animated.View>
+    <Screen scroll>
+      <View style={styles.hero}>
+        <LinearGradient
+          colors={['#1A3348', '#0F1C2A', '#152536']}
+          start={{ x: 0.2, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={styles.heroGradient}
+        >
+          <StatusChip label={chipLabel} tone="ok" />
+          <Text style={styles.eyebrow}>Catch score</Text>
+          <Animated.View style={{ opacity: scoreOpacity, transform: [{ scale: scoreScale }] }}>
+            <Text style={styles.score}>{scoreDisplay}</Text>
+          </Animated.View>
+          <Text style={styles.scoreHint}>{scoreHint}</Text>
+        </LinearGradient>
       </View>
-      <Animated.View style={[styles.statsRow, { opacity: statsOpacity, transform: [{ translateY: statsY }] }]}>
-        <View style={styles.statCol}>
-          <Text style={styles.statLabel}>Fight Time</Text>
-          <Text style={styles.statValue}>{lastFight}</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statCol}>
-          <Text style={styles.statLabel}>Location</Text>
-          <Text style={styles.statValueBody}>{lastLoc}</Text>
-        </View>
-      </Animated.View>
-      <PressScale onPress={onAddDetails} style={styles.addButton} activeScale={0.98}>
-        <Text style={styles.addLabel}>Add Catch Details</Text>
-      </PressScale>
-      <Pressable onPress={onSkip} style={styles.skipButton}>
-        <Text style={styles.skipLabel}>Skip and save to Journey</Text>
-      </Pressable>
-    </View>
+
+      <View style={styles.metrics}>
+        <Metric label="Fight" value={catchItem ? formatFight(catchItem.fightSeconds) : '—'} mono />
+        <Metric label="Location" value={catchItem?.location || '—'} />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Coaching notes</Text>
+        {hasSamples ? (
+          <>
+            <Text style={styles.body}>{catchItem?.coachingSummary ?? 'Fight captured.'}</Text>
+            <View style={styles.bullets}>
+              <Text style={styles.bulletLabel}>What went well</Text>
+              <Text style={styles.body}>{catchItem?.whatWentWell}</Text>
+              <Text style={[styles.bulletLabel, { marginTop: 14 }]}>One improvement</Text>
+              <Text style={styles.body}>{catchItem?.improvement}</Text>
+            </View>
+            {series.length > 1 ? (
+              <View style={styles.chart}>
+                <TensionChart samples={series} label="Tension consistency" />
+              </View>
+            ) : null}
+          </>
+        ) : (
+          <Text style={styles.body}>
+            Not enough tension samples were stored to build a coaching breakdown. Your catch score was still saved.
+          </Text>
+        )}
+      </View>
+
+      <PrimaryButton label="Add catch details" onPress={onAddDetails} style={styles.primary} />
+      <SecondaryButton label="Save without details" onPress={onSkip} />
+    </Screen>
   );
 }
 
+function formatFight(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  hero: {
+    borderRadius: radii.xl,
+    overflow: 'hidden',
+    marginTop: 8,
+    marginBottom: 22,
+    ...shadows.brand,
+  },
+  heroGradient: {
     alignItems: 'center',
-    paddingTop: 22,
-    paddingHorizontal: 22,
-    paddingBottom: 22,
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+    gap: 8,
   },
   eyebrow: {
+    fontFamily: fonts.bodySemiBold,
     fontSize: 11,
-    letterSpacing: 3,
+    color: colors.copperSoft,
+    letterSpacing: 1.4,
     textTransform: 'uppercase',
-    color: colors.textSecondary,
-  },
-  center: {
-    flex: 1,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  wingsWrap: {
-    position: 'absolute',
+    marginTop: 8,
   },
   score: {
     fontFamily: fonts.displayBold,
-    fontSize: 112,
-    lineHeight: 101,
-    color: colors.navy,
+    fontSize: 96,
+    lineHeight: 100,
+    color: colors.copperSoft,
+    letterSpacing: -2,
   },
-  scoreLabel: {
-    fontSize: 11,
-    letterSpacing: 2.5,
-    textTransform: 'uppercase',
-    color: colors.copper,
-    marginTop: 6,
-    fontFamily: fonts.bodySemiBold,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    marginBottom: 22,
-  },
-  statCol: {
-    alignItems: 'center',
-    paddingHorizontal: 26,
-  },
-  statLabel: {
-    fontSize: 10,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    color: colors.missing,
-  },
-  statValue: {
-    fontFamily: fonts.monoRegular,
-    fontSize: 16,
-    color: colors.navy,
-    marginTop: 4,
-  },
-  statValueBody: {
-    fontSize: 14,
-    color: colors.navy,
-    fontFamily: fonts.bodyMedium,
-    marginTop: 4,
-  },
-  statDivider: {
-    width: 1,
-    backgroundColor: colors.border,
-  },
-  addButton: {
-    width: '100%',
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: colors.copper,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addLabel: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 15,
-    fontFamily: fonts.bodySemiBold,
-  },
-  skipButton: {
-    marginTop: 14,
-  },
-  skipLabel: {
-    color: colors.textSecondary,
+  scoreHint: {
+    fontFamily: fonts.bodyRegular,
     fontSize: 13,
-    fontFamily: fonts.bodyMedium,
+    lineHeight: 18,
+    color: colors.textOnDarkSecondary,
+    textAlign: 'center',
+    maxWidth: 280,
   },
+  metrics: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 24,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderFaint,
+  },
+  section: { marginBottom: 24 },
+  sectionTitle: {
+    fontFamily: fonts.displaySemiBold,
+    fontSize: 18,
+    letterSpacing: -0.2,
+    color: colors.navy,
+    marginBottom: 10,
+  },
+  body: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.textSecondary,
+  },
+  bullets: {
+    marginTop: 14,
+    paddingVertical: 4,
+  },
+  bulletLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 12,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: colors.slateBlue,
+    marginBottom: 6,
+  },
+  chart: { marginTop: 16 },
+  primary: { marginBottom: 10 },
 });

@@ -27,7 +27,7 @@ function Ring({ delay }: { delay: number }) {
   }, [v, delay]);
 
   const scale = v.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1.7] });
-  const opacity = v.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] });
+  const opacity = v.interpolate({ inputRange: [0, 1], outputRange: [0.65, 0] });
 
   return <Animated.View style={[styles.ring, { opacity, transform: [{ scale }] }]} />;
 }
@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
     width: SIZE,
     height: SIZE,
     borderRadius: SIZE / 2,
-    borderWidth: 1,
-    borderColor: 'rgba(75,106,136,.28)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(42,122,136,0.42)',
   },
 });

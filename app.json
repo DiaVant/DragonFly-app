@@ -24,6 +24,12 @@
     "plugins": [
       "expo-font",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow DragonFly to attach photos of your catch to Journey memories."
+        }
+      ],
+      [
         "react-native-ble-plx",
         {
           "isBackgroundEnabled": false,
