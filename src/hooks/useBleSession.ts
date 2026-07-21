@@ -4,6 +4,11 @@ import { getBleTransport } from '../ble/transport';
 import { writeSessionFile } from '../lib/sessionFile';
 import type { BleConnectionStatus, DragonflySessionFile } from '../types';
 
+//AI SCORE:
+const MIN_SAFE_TENSION = 30;
+const MAX_SAFE_TENSION = 70;
+
+
 const NUMERIC_PATTERN = /^-?\d+(\.\d+)?$/;
 
 function emptySessionFile(startedAt: string): DragonflySessionFile {
@@ -15,6 +20,152 @@ function emptySessionFile(startedAt: string): DragonflySessionFile {
     values: [],
     average: null,
     finalScore: null,
+  };
+}
+
+function calculateDragonFlyScore(
+  values: number[]
+): { average: number; finalScore: number } {
+  const minTension = MIN_SAFE_TENSION;
+  const maxTension = MAX_SAFE_TENSION;
+
+  if (values.length === 0 || maxTension <= minTension) {
+    return { average: 0, finalScore: 1 };
+  }
+
+  const clamp = (value: number, min: number, max: number) =>
+    Math.min(max, Math.max(min, value));
+
+  const range = maxTension - minTension;
+
+  let sum = 0;
+  let safeCount = 0;
+  let slackExposure = 0;
+  let overloadExposure = 0;
+  let totalChange = 0;
+  let maximumNormalizedTension = -Infinity;
+  let longestSlackEvent = 0;
+  let currentSlackEvent = 0;
+  let overloadCount = 0;
+  let recoveryTotal = 0;
+  let recoveryEvents = 0;
+  let currentRecoveryLength = 0;
+  let recovering = false;
+  let previousNormalized = 0;
+
+  for (let i = 0; i < values.length; i++) {
+    const tension = values[i];
+    const normalized =
+      (tension - minTension) / range;
+
+    sum += tension;
+
+    maximumNormalizedTension = Math.max(
+      maximumNormalizedTension,
+      normalized
+    );
+
+    if (normalized >= 0 && normalized <= 1) {
+      safeCount++;
+
+      if (recovering) {
+        recoveryTotal += currentRecoveryLength;
+        recoveryEvents++;
+        currentRecoveryLength = 0;
+        recovering = false;
+      }
+    } else {
+      recovering = true;
+      currentRecoveryLength++;
+    }
+
+    if (normalized < 0) {
+      slackExposure += -normalized;
+      currentSlackEvent++;
+
+      longestSlackEvent = Math.max(
+        longestSlackEvent,
+        currentSlackEvent
+      );
+    } else {
+      currentSlackEvent = 0;
+    }
+
+    if (normalized > 1) {
+      overloadExposure += normalized - 1;
+      overloadCount++;
+    }
+
+    if (i > 0) {
+      totalChange += Math.abs(
+        normalized - previousNormalized
+      );
+    }
+
+    previousNormalized = normalized;
+  }
+
+  if (recovering) {
+    recoveryTotal += currentRecoveryLength;
+    recoveryEvents++;
+  }
+
+  const safeRate =
+    safeCount / values.length;
+
+  const meanSlackExposure =
+    slackExposure / values.length;
+
+  const meanOverloadExposure =
+    overloadExposure / values.length;
+
+  const meanAbsoluteChange =
+    values.length > 1
+      ? totalChange / (values.length - 1)
+      : 0;
+
+  const averageRecovery =
+    recoveryEvents > 0
+      ? recoveryTotal / recoveryEvents
+      : 0;
+
+  const overloadRate =
+    overloadCount / values.length;
+
+  const qSafe = safeRate; // Percentage of readings within the safe tension range.
+  const qSlack = 1 - clamp(meanSlackExposure / 0.2, 0, 1); // Ability to avoid loose-line tension.
+  const qOver = 1 - clamp(meanOverloadExposure / 0.2, 0, 1); // Ability to avoid excessive tension.
+  const qSmooth = 1 - clamp(meanAbsoluteChange / 0.3, 0, 1); // Consistency between consecutive tension readings.
+  const qRecovery = 1 - clamp(averageRecovery / 10, 0, 1); // Speed of returning to safe tension after a mistake.
+
+  const quality =
+    0.4 * qSafe +
+    0.2 * qOver +
+    0.15 * qSlack +
+    0.15 * qRecovery +
+    0.1 * qSmooth;
+
+  let score = 45 + 50 * quality;
+
+  if (maximumNormalizedTension >= 1.5) {
+    score -= 15;
+  }
+
+  if (longestSlackEvent >= 20) {
+    score -= 10;
+  }
+
+  if (overloadRate >= 0.2) {
+    score = Math.min(score, 60);
+  }
+
+  return {
+    average: Number(
+      (sum / values.length).toFixed(2)
+    ),
+    finalScore: Math.round(
+      clamp(score, 1, 100)
+    ),
   };
 }
 
@@ -83,10 +234,14 @@ export function useBleSession() {
       return;
     }
 
-    const sum = collected.reduce((total, value) => total + value, 0);
-    const rawAverage = sum / collected.length;
-    const average = Number(rawAverage.toFixed(2));
-    const score = Math.round(average);
+    // const sum = collected.reduce((total, value) => total + value, 0);
+    // const rawAverage = sum / collected.length;
+    // const average = Number(rawAverage.toFixed(2));
+    // const score = Math.round(average);
+    const {
+      average,
+      finalScore: score,
+    } = calculateDragonFlyScore(collected);
 
     const session: DragonflySessionFile = {
       startedAt: startedAtRef.current ?? new Date().toISOString(),
