@@ -54,10 +54,14 @@ export interface Catch {
   improvement?: string;
   /** How score was produced. */
   scoreSource?: 'average' | 'openai';
-  /** Short AI rationale for the score (optional). */
+  /** Short AI highlight (≤6 words) or score label. */
   scoreRationale?: string;
   /** Model id when scoreSource is openai. */
   aiModel?: string;
+  /** 0–100 AI indexes (post-fight). */
+  consistencyIndex?: number;
+  controlIndex?: number;
+  recoveryIndex?: number;
   /** Gear used for calibration context. */
   rodId?: string;
   lineId?: string;

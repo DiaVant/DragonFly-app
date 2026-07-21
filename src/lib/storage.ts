@@ -87,6 +87,9 @@ export function normalizeCatch(raw: Partial<Catch> & { id: string }): Catch {
     scoreSource: raw.scoreSource === 'openai' ? 'openai' : raw.scoreSource === 'average' ? 'average' : undefined,
     scoreRationale: raw.scoreRationale,
     aiModel: raw.aiModel,
+    consistencyIndex: typeof raw.consistencyIndex === 'number' ? raw.consistencyIndex : undefined,
+    controlIndex: typeof raw.controlIndex === 'number' ? raw.controlIndex : undefined,
+    recoveryIndex: typeof raw.recoveryIndex === 'number' ? raw.recoveryIndex : undefined,
     rodId: raw.rodId,
     lineId: raw.lineId,
   };

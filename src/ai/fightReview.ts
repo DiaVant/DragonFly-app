@@ -7,19 +7,20 @@ export interface FightReviewInput {
   fightSeconds: number;
   location: string;
   samples: number[];
-  /** Rule-based fallbacks already computed locally. */
-  baselineAverage: number;
-  baselineSummary?: string;
-  baselineWhatWentWell?: string;
-  baselineImprovement?: string;
+  /** Local average tension — context only, not shown as the score. */
+  averageTension: number;
 }
 
 export interface FightAiReview {
   score: number;
-  scoreRationale: string;
-  summary: string;
-  whatWentWell: string;
-  improvement: string;
+  /** 0–100 indexes for the score screen. */
+  consistency: number;
+  control: number;
+  recovery: number;
+  /** ≤6 words. */
+  highlight: string;
+  /** ≤10 words — one fix. */
+  tip: string;
   model: string;
 }
 
@@ -31,7 +32,7 @@ export class OpenAiReviewError extends Error {
 }
 
 /**
- * Post-fight OpenAI review: rubric score (0–100) + coaching copy.
+ * Post-fight OpenAI review: one score + three 0–100 metrics + tiny copy.
  * Live in-fight coaching stays local/deterministic.
  */
 export async function reviewFightWithOpenAI(input: FightReviewInput): Promise<FightAiReview> {
@@ -44,40 +45,38 @@ export async function reviewFightWithOpenAI(input: FightReviewInput): Promise<Fi
   const series = downsampleSeries(input.samples, 40);
   const stats = summarizeSeries(series);
 
-  const system = `You are DragonFly, a coaching assistant for beginner anglers using a DragonFly 1.0 smart fishing-rod attachment.
-Tension samples are a UNITLESS relative index — never claim pounds, Newtons, or calibrated force.
-Be encouraging, specific, and practical for family/friends learning to fight a fish.
-Respond with JSON only.`;
+  const system = `You are DragonFly fight coach for DragonFly 1.0.
+Tension is a UNITLESS relative index — never claim pounds or calibrated force.
+Return JSON only. Be extremely brief. Prefer numbers over sentences.`;
 
   const user = JSON.stringify({
-    task: 'Score this fight and write short coaching notes.',
+    task: 'Score the fight with quant metrics and tiny labels — no paragraphs.',
     outcome: input.outcome,
     fightSeconds: input.fightSeconds,
     location: input.location,
-    baselineAverageTension: input.baselineAverage,
-    localHints: {
-      summary: input.baselineSummary,
-      whatWentWell: input.baselineWhatWentWell,
-      improvement: input.baselineImprovement,
-    },
+    averageTension: input.averageTension,
     tensionStats: stats,
     tensionSeries: series,
-    rubric: {
-      scoreRange: '0-100 integer',
-      consistency: 'Reward smooth relative tension; penalize wild spikes and slack drops',
-      control: 'Reward recovering after spikes/slack; penalize long uncontrolled runs',
-      outcomeNote:
+    rules: {
+      score: 'integer 0-100 overall control',
+      consistency: '0-100 how smooth tension stayed (penalize spikes/slack)',
+      control: '0-100 how well angler managed pressure vs fish runs',
+      recovery: '0-100 how quickly they recovered after spikes or slack',
+      highlight: 'max 6 words — best thing they did',
+      tip: 'max 10 words — one concrete next-fight fix',
+      lostNote:
         input.outcome === 'lost'
-          ? 'Fish got away — score effort/control honestly, but emphasize the main mistake to fix'
-          : 'Fish landed — celebrate control, still give one improvement',
-      tone: 'Beginner-friendly, outdoor coach, no jargon dump',
+          ? 'Be honest; tip should name the likely mistake'
+          : 'Still give one improvement tip',
+      ban: 'No multi-sentence coaching. No fluff. No explanations longer than the word limits.',
     },
     outputSchema: {
       score: 'integer 0-100',
-      scoreRationale: '1 short sentence explaining the score',
-      summary: '2 sentences max on what happened',
-      whatWentWell: '1-2 sentences',
-      improvement: '1 concrete next-fight tip',
+      consistency: 'integer 0-100',
+      control: 'integer 0-100',
+      recovery: 'integer 0-100',
+      highlight: 'string ≤6 words',
+      tip: 'string ≤10 words',
     },
   });
 
@@ -89,7 +88,7 @@ Respond with JSON only.`;
     },
     body: JSON.stringify({
       model,
-      temperature: 0.4,
+      temperature: 0.2,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: system },
@@ -118,16 +117,19 @@ Respond with JSON only.`;
     throw new OpenAiReviewError('OpenAI returned invalid JSON.');
   }
 
-  const score = clampScore(parsed.score);
+  const highlight = clipWords(asText(parsed.highlight, 'Steady pressure'), 6);
+  const tip = clipWords(
+    asText(parsed.tip, input.outcome === 'lost' ? 'Ease earlier on spikes' : 'Recover line faster on drops'),
+    10
+  );
+
   return {
-    score,
-    scoreRationale: asText(parsed.scoreRationale, 'Scored from relative tension control this fight.'),
-    summary: asText(parsed.summary, input.baselineSummary ?? 'Fight captured.'),
-    whatWentWell: asText(parsed.whatWentWell, input.baselineWhatWentWell ?? 'You stayed with the fight.'),
-    improvement: asText(
-      parsed.improvement,
-      input.baselineImprovement ?? 'Keep pressure smooth and recover line when tension drops.'
-    ),
+    score: clampScore(parsed.score),
+    consistency: clampScore(parsed.consistency ?? statsToConsistency(stats)),
+    control: clampScore(parsed.control ?? parsed.score),
+    recovery: clampScore(parsed.recovery ?? 60),
+    highlight,
+    tip,
     model,
   };
 }
@@ -144,9 +146,21 @@ function asText(raw: unknown, fallback: string): string {
   return t.length ? t : fallback;
 }
 
+function clipWords(text: string, maxWords: number): string {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return words.join(' ');
+  return words.slice(0, maxWords).join(' ');
+}
+
+function statsToConsistency(stats: ReturnType<typeof summarizeSeries>): number {
+  if (stats.avg == null || stats.variability == null || stats.avg <= 0) return 50;
+  const cv = stats.variability / stats.avg;
+  return Math.max(0, Math.min(100, Math.round(100 - cv * 120)));
+}
+
 function summarizeSeries(samples: number[]) {
   if (!samples.length) {
-    return { count: 0, min: null, max: null, avg: null, variability: null };
+    return { count: 0, min: null as number | null, max: null as number | null, avg: null as number | null, variability: null as number | null };
   }
   const min = Math.min(...samples);
   const max = Math.max(...samples);

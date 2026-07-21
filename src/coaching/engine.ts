@@ -189,7 +189,7 @@ export function evaluateCoaching(
   };
 }
 
-/** Summarize a finished fight into coaching bullets for the score screen. */
+/** Summarize a finished fight into short coaching for the score screen. */
 export function summarizeFight(
   samples: number[],
   outcome: 'landed' | 'lost' = 'landed'
@@ -201,18 +201,9 @@ export function summarizeFight(
 } {
   if (samples.length < COACHING_THRESHOLDS.minSamplesForAdvice) {
     return {
-      summary:
-        outcome === 'lost'
-          ? 'Not enough tension samples to diagnose this loss in detail — still worth saving the attempt.'
-          : 'Not enough tension samples to coach this fight in detail.',
-      whatWentWell:
-        outcome === 'lost'
-          ? 'You stayed with the fight and chose to review it instead of brushing it off.'
-          : 'You completed the session and captured a catch score.',
-      improvement:
-        outcome === 'lost'
-          ? 'Next time keep DragonFly 1.0 connected for the full fight so we can pinpoint where the fish got away.'
-          : 'Keep DragonFly 1.0 connected for the full fight so coaching can calibrate to the line.',
+      summary: outcome === 'lost' ? 'Too few samples to diagnose.' : 'Too few samples to coach.',
+      whatWentWell: outcome === 'lost' ? 'Reviewed the loss' : 'Session completed',
+      improvement: 'Keep sensor connected full fight',
       events: [],
     };
   }
@@ -236,41 +227,33 @@ export function summarizeFight(
   const slackEvents = events.filter((e) => e.id === 'watch_slack').length;
   const stable = events.some((e) => e.id === 'stabilized');
 
-  let whatWentWell = 'You maintained contact with the fish through the fight.';
-  if (stable) whatWentWell = 'You found stretches of stable relative tension — calm, controlled pressure.';
+  let whatWentWell = 'Held contact';
+  if (stable) whatWentWell = 'Stable pressure stretches';
   else if (stats.variability != null && stats.variability < COACHING_THRESHOLDS.variabilityCv) {
-    whatWentWell = 'Relative tension stayed fairly consistent — a good sign for beginners.';
+    whatWentWell = 'Consistent tension';
   }
 
-  let improvement = 'Focus on smooth reel turns and small rod adjustments.';
-  if (highPeaks > 0) improvement = 'When tension spikes, ease the drag or let the fish run before forcing the reel.';
-  else if (slackEvents > 0) improvement = 'Watch for sudden drops — recover line quickly to avoid slack.';
+  let improvement = 'Smoother reel turns';
+  if (highPeaks > 0) improvement = 'Ease earlier on spikes';
+  else if (slackEvents > 0) improvement = 'Recover line on drops';
 
   let summary = stable
-    ? 'A controlled fight with moments of stable line pressure.'
+    ? 'Controlled fight'
     : highPeaks > 0
-      ? 'An active fight with rising tension — coaching focused on protecting the line.'
-      : 'A steady fight guided by relative tension changes.';
+      ? 'Active fight · protect the line'
+      : 'Steady fight';
 
   if (outcome === 'lost') {
     summary =
       slackEvents > highPeaks
-        ? 'The fish got away — relative tension drops suggest slack may have cost the hookset.'
+        ? 'Lost · likely slack'
         : highPeaks > 0
-          ? 'The fish got away — rising tension spikes suggest the drag or rod angle may have been too aggressive.'
-          : 'The fish got away — review the tension trend below and pick one thing to fix next fight.';
-    whatWentWell =
-      'Ending the fight honestly is how beginners improve — this session is still a win for learning.';
-    if (slackEvents > 0) {
-      improvement =
-        'Practice recovering line the instant tension drops. Slack is the most common way a fish shakes free.';
-    } else if (highPeaks > 0) {
-      improvement =
-        'On the next run, ease drag earlier and let the fish take line instead of muscling through spikes.';
-    } else {
-      improvement =
-        'Replay the last 20 seconds of the trend: stay smoother on the reel and keep steady rod pressure to the net.';
-    }
+          ? 'Lost · pressure too hard'
+          : 'Lost · review the trend';
+    whatWentWell = 'Honest review';
+    if (slackEvents > 0) improvement = 'Recover line on drops';
+    else if (highPeaks > 0) improvement = 'Ease drag on the run';
+    else improvement = 'Smoother pressure to the net';
   }
 
   return { summary, whatWentWell, improvement, events: events.slice(0, 12) };

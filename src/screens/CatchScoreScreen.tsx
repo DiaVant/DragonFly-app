@@ -14,7 +14,7 @@ interface Props {
   onSkip: () => void;
 }
 
-/** Landed-catch celebration + coaching summary. Lost fights use FightLostScreen. */
+/** Landed-catch celebration + short quant coaching. Lost fights use FightLostScreen. */
 export function CatchScoreScreen({
   scoreDisplay,
   catchItem,
@@ -24,32 +24,39 @@ export function CatchScoreScreen({
 }: Props) {
   const scoreScale = useRef(new Animated.Value(0.92)).current;
   const scoreOpacity = useRef(new Animated.Value(0)).current;
+  const reviewing = aiReviewStatus === 'loading';
+  const scoreReady = !reviewing && (catchItem?.scoreSource === 'openai' || aiReviewStatus === 'fallback' || aiReviewStatus === 'error' || aiReviewStatus === 'ready' || aiReviewStatus === 'idle');
 
   useEffect(() => {
+    if (reviewing) return;
     scoreScale.setValue(0.92);
     scoreOpacity.setValue(0);
     Animated.parallel([
       Animated.timing(scoreScale, { toValue: 1, duration: motion.scoreReveal, useNativeDriver: true }),
       Animated.timing(scoreOpacity, { toValue: 1, duration: motion.scoreReveal, useNativeDriver: true }),
     ]).start();
-  }, [scoreScale, scoreOpacity, catchItem?.scoreSource, catchItem?.score]);
+  }, [scoreScale, scoreOpacity, reviewing, catchItem?.scoreSource, catchItem?.score]);
 
   const hasSamples = (catchItem?.sampleCount ?? 0) > 0 || (catchItem?.relativeTensionSeries?.length ?? 0) > 0;
   const series = catchItem?.relativeTensionSeries ?? [];
-  const chipLabel =
-    aiReviewStatus === 'loading'
-      ? 'AI reviewing'
-      : catchItem?.scoreSource === 'openai'
-        ? 'AI coach scored'
-        : 'Catch scored';
-  const scoreHint =
-    aiReviewStatus === 'loading'
-      ? 'AI coach is reviewing your fight…'
-      : catchItem?.scoreSource === 'openai'
-        ? catchItem.scoreRationale || 'Scored by AI coach from relative tension control'
-        : aiReviewStatus === 'error'
-          ? 'AI unavailable — averaged from sensor samples'
-          : 'Averaged from DragonFly 1.0 samples';
+  const hasAiMetrics =
+    catchItem?.consistencyIndex != null &&
+    catchItem?.controlIndex != null &&
+    catchItem?.recoveryIndex != null;
+
+  const chipLabel = reviewing
+    ? 'Scoring…'
+    : catchItem?.scoreSource === 'openai'
+      ? 'Coach score'
+      : 'Catch scored';
+
+  const scoreHint = reviewing
+    ? 'Reading your tension samples'
+    : catchItem?.scoreSource === 'openai'
+      ? catchItem.scoreRationale || 'Control score from this fight'
+      : aiReviewStatus === 'error'
+        ? 'AI unavailable — sensor average'
+        : 'Averaged from DragonFly 1.0 samples';
 
   return (
     <Screen scroll>
@@ -62,9 +69,13 @@ export function CatchScoreScreen({
         >
           <StatusChip label={chipLabel} tone="ok" />
           <Text style={styles.eyebrow}>Catch score</Text>
-          <Animated.View style={{ opacity: scoreOpacity, transform: [{ scale: scoreScale }] }}>
-            <Text style={styles.score}>{scoreDisplay}</Text>
-          </Animated.View>
+          {reviewing || !scoreReady ? (
+            <Text style={styles.scorePending}>···</Text>
+          ) : (
+            <Animated.View style={{ opacity: scoreOpacity, transform: [{ scale: scoreScale }] }}>
+              <Text style={styles.score}>{scoreDisplay}</Text>
+            </Animated.View>
+          )}
           <Text style={styles.scoreHint}>{scoreHint}</Text>
         </LinearGradient>
       </View>
@@ -75,27 +86,45 @@ export function CatchScoreScreen({
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Coaching notes</Text>
-        {hasSamples ? (
+        <Text style={styles.sectionTitle}>Fight read</Text>
+        {reviewing ? (
+          <Text style={styles.body}>Scoring consistency, control, and recovery…</Text>
+        ) : hasAiMetrics ? (
           <>
-            <Text style={styles.body}>{catchItem?.coachingSummary ?? 'Fight captured.'}</Text>
-            <View style={styles.bullets}>
-              <Text style={styles.bulletLabel}>What went well</Text>
-              <Text style={styles.body}>{catchItem?.whatWentWell}</Text>
-              <Text style={[styles.bulletLabel, { marginTop: 14 }]}>One improvement</Text>
-              <Text style={styles.body}>{catchItem?.improvement}</Text>
+            <View style={styles.indexRow}>
+              <IndexStat label="Consistency" value={catchItem!.consistencyIndex!} />
+              <IndexStat label="Control" value={catchItem!.controlIndex!} />
+              <IndexStat label="Recovery" value={catchItem!.recoveryIndex!} />
+            </View>
+            <View style={styles.shortNotes}>
+              <Text style={styles.noteLabel}>Highlight</Text>
+              <Text style={styles.noteValue}>{catchItem?.whatWentWell}</Text>
+              <Text style={[styles.noteLabel, { marginTop: 12 }]}>Next tip</Text>
+              <Text style={styles.noteValue}>{catchItem?.improvement}</Text>
+            </View>
+          </>
+        ) : hasSamples ? (
+          <>
+            <View style={styles.shortNotes}>
+              <Text style={styles.noteLabel}>Highlight</Text>
+              <Text style={styles.noteValue}>{catchItem?.whatWentWell}</Text>
+              <Text style={[styles.noteLabel, { marginTop: 12 }]}>Next tip</Text>
+              <Text style={styles.noteValue}>{catchItem?.improvement}</Text>
             </View>
             {series.length > 1 ? (
               <View style={styles.chart}>
-                <TensionChart samples={series} label="Tension consistency" />
+                <TensionChart samples={series} label="Tension" />
               </View>
             ) : null}
           </>
         ) : (
-          <Text style={styles.body}>
-            Not enough tension samples were stored to build a coaching breakdown. Your catch score was still saved.
-          </Text>
+          <Text style={styles.body}>Not enough samples for a breakdown. Score still saved.</Text>
         )}
+        {hasAiMetrics && series.length > 1 ? (
+          <View style={styles.chart}>
+            <TensionChart samples={series} label="Tension" />
+          </View>
+        ) : null}
       </View>
 
       <Text style={styles.journeyHint}>You’ll save this catch to Journey next.</Text>
@@ -103,6 +132,15 @@ export function CatchScoreScreen({
       <PrimaryButton label="Add catch details" onPress={onAddDetails} style={styles.primary} />
       <SecondaryButton label="Save to Journey" onPress={onSkip} />
     </Screen>
+  );
+}
+
+function IndexStat({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={styles.indexStat}>
+      <Text style={styles.indexValue}>{value}</Text>
+      <Text style={styles.indexLabel}>{label}</Text>
+    </View>
   );
 }
 
@@ -141,6 +179,13 @@ const styles = StyleSheet.create({
     color: colors.copperSoft,
     letterSpacing: -2,
   },
+  scorePending: {
+    fontFamily: fonts.displayBold,
+    fontSize: 72,
+    lineHeight: 80,
+    color: 'rgba(212,160,122,0.55)',
+    letterSpacing: 4,
+  },
   scoreHint: {
     fontFamily: fonts.bodyRegular,
     fontSize: 13,
@@ -163,7 +208,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     letterSpacing: -0.2,
     color: colors.navy,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   body: {
     fontFamily: fonts.bodyRegular,
@@ -171,17 +216,51 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: colors.textSecondary,
   },
-  bullets: {
-    marginTop: 14,
-    paddingVertical: 4,
+  indexRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
   },
-  bulletLabel: {
+  indexStat: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
+  indexValue: {
+    fontFamily: fonts.displayBold,
+    fontSize: 28,
+    color: colors.navy,
+    letterSpacing: -0.5,
+  },
+  indexLabel: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 12,
-    letterSpacing: 0.4,
+    fontSize: 10,
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
     color: colors.slateBlue,
-    marginBottom: 6,
+    marginTop: 4,
+  },
+  shortNotes: {
+    marginBottom: 4,
+  },
+  noteLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: colors.slateBlue,
+    marginBottom: 4,
+  },
+  noteValue: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 16,
+    lineHeight: 22,
+    color: colors.navy,
   },
   chart: { marginTop: 16 },
   journeyHint: {

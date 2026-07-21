@@ -15,8 +15,7 @@ interface Props {
 }
 
 /**
- * Dedicated post-fight screen when the fish got away.
- * Focus: diagnose the mistake, keep the learning in Journey.
+ * Post-fight screen when the fish got away — short quant read, one tip.
  */
 export function FightLostScreen({
   catchItem,
@@ -26,6 +25,11 @@ export function FightLostScreen({
   onTryAgain,
 }: Props) {
   const enter = useRef(new Animated.Value(0)).current;
+  const reviewing = aiReviewStatus === 'loading';
+  const hasAiMetrics =
+    catchItem?.consistencyIndex != null &&
+    catchItem?.controlIndex != null &&
+    catchItem?.recoveryIndex != null;
 
   useEffect(() => {
     Animated.timing(enter, {
@@ -36,17 +40,17 @@ export function FightLostScreen({
   }, [enter]);
 
   const series = catchItem?.relativeTensionSeries ?? [];
-  const hasSamples = (catchItem?.sampleCount ?? 0) > 0 || series.length > 0;
-  const chipLabel =
-    aiReviewStatus === 'loading' ? 'AI reviewing' : "Didn't land";
-  const scoreLabel =
-    catchItem?.scoreSource === 'openai' || aiReviewStatus === 'loading' ? 'Coach score' : 'Tension index';
-  const panelKicker =
-    aiReviewStatus === 'loading'
-      ? 'AI coach reviewing'
-      : catchItem?.scoreSource === 'openai'
-        ? 'AI coach read'
-        : 'What likely happened';
+  const chipLabel = reviewing ? 'Scoring…' : "Didn't land";
+  const scoreLabel = reviewing
+    ? 'Coach score'
+    : catchItem?.scoreSource === 'openai'
+      ? 'Coach score'
+      : 'Tension index';
+  const scoreValue = reviewing
+    ? '···'
+    : catchItem
+      ? String(catchItem.score)
+      : '—';
 
   return (
     <Screen scroll>
@@ -66,52 +70,47 @@ export function FightLostScreen({
         <StatusChip label={chipLabel} tone="caution" />
 
         <Text style={styles.title}>The fish got away</Text>
-        <Text style={styles.lead}>
-          That still counts. Save it to Journey — beginners improve by reviewing losses, not ignoring them.
-        </Text>
+        <Text style={styles.lead}>Save the attempt — short numbers beat long excuses.</Text>
 
         <View style={styles.metaRow}>
-          <Metric
-            label="Fight"
-            value={catchItem ? fmtElapsed(catchItem.fightSeconds) : '—'}
-            mono
-          />
-          <Metric label={scoreLabel} value={catchItem ? String(catchItem.score) : '—'} emphasize />
+          <Metric label="Fight" value={catchItem ? fmtElapsed(catchItem.fightSeconds) : '—'} mono />
+          <Metric label={scoreLabel} value={scoreValue} emphasize />
           <Metric label="Location" value={catchItem?.location || '—'} />
         </View>
 
-        {catchItem?.scoreRationale && catchItem.scoreSource === 'openai' ? (
+        {reviewing ? (
+          <Text style={styles.rationale}>Reading consistency, control, recovery…</Text>
+        ) : hasAiMetrics ? (
+          <View style={styles.indexRow}>
+            <IndexStat label="Consistency" value={catchItem!.consistencyIndex!} />
+            <IndexStat label="Control" value={catchItem!.controlIndex!} />
+            <IndexStat label="Recovery" value={catchItem!.recoveryIndex!} />
+          </View>
+        ) : null}
+
+        {!reviewing && catchItem?.scoreRationale && catchItem.scoreSource === 'openai' ? (
           <Text style={styles.rationale}>{catchItem.scoreRationale}</Text>
         ) : null}
 
-        <View style={styles.panel}>
-          <Text style={styles.panelKicker}>{panelKicker}</Text>
-          <Text style={styles.panelBody}>
-            {aiReviewStatus === 'loading'
-              ? 'Pulling a post-fight read from your relative tension samples…'
-              : catchItem?.coachingSummary ??
-                'Not enough samples to diagnose this loss in detail — still worth saving the attempt.'}
-          </Text>
-        </View>
-
         <View style={styles.fixBlock}>
-          <Text style={styles.fixLabel}>Fix this next time</Text>
+          <Text style={styles.fixLabel}>Fix next time</Text>
           <Text style={styles.fixBody}>
-            {catchItem?.improvement ??
-              'Stay smoother on the reel and keep steady rod pressure when tension shifts.'}
+            {reviewing
+              ? '…'
+              : catchItem?.improvement ?? 'Ease earlier when tension spikes.'}
           </Text>
         </View>
 
-        {hasSamples && catchItem?.whatWentWell ? (
+        {!reviewing && catchItem?.whatWentWell ? (
           <View style={styles.keepBlock}>
-            <Text style={styles.keepLabel}>Still worth keeping</Text>
+            <Text style={styles.keepLabel}>Highlight</Text>
             <Text style={styles.keepBody}>{catchItem.whatWentWell}</Text>
           </View>
         ) : null}
 
         {series.length > 1 ? (
           <View style={styles.chart}>
-            <TensionChart samples={series} label="Where the fight shifted" />
+            <TensionChart samples={series} label="Tension" />
           </View>
         ) : null}
 
@@ -122,6 +121,15 @@ export function FightLostScreen({
         ) : null}
       </Animated.View>
     </Screen>
+  );
+}
+
+function IndexStat({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={styles.indexStat}>
+      <Text style={styles.indexValue}>{value}</Text>
+      <Text style={styles.indexLabel}>{label}</Text>
+    </View>
   );
 }
 
@@ -147,75 +155,79 @@ const styles = StyleSheet.create({
     marginBottom: 22,
   },
   rationale: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 14,
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 15,
     lineHeight: 20,
-    color: colors.textSecondary,
-    marginTop: -8,
-    marginBottom: 18,
+    color: colors.navy,
+    marginBottom: 16,
   },
   metaRow: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 22,
+    marginBottom: 18,
     paddingBottom: 18,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderFaint,
   },
-  panel: {
-    backgroundColor: 'rgba(196,135,42,0.1)',
-    borderRadius: radii.lg,
-    padding: 16,
-    marginBottom: 18,
+  indexRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  indexStat: {
+    flex: 1,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(196,135,42,0.22)',
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    paddingVertical: 12,
+    alignItems: 'center',
   },
-  panelKicker: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 11,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    color: colors.caution,
-    marginBottom: 8,
-  },
-  panelBody: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 15,
-    lineHeight: 22,
+  indexValue: {
+    fontFamily: fonts.displayBold,
+    fontSize: 26,
     color: colors.navy,
   },
+  indexLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 10,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: colors.slateBlue,
+    marginTop: 2,
+  },
   fixBlock: {
-    marginBottom: 18,
+    marginBottom: 16,
   },
   fixLabel: {
     fontFamily: fonts.displaySemiBold,
-    fontSize: 20,
+    fontSize: 18,
     letterSpacing: -0.3,
     color: colors.navy,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   fixBody: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 16,
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 17,
     lineHeight: 24,
     color: colors.text,
   },
   keepBlock: {
-    marginBottom: 18,
+    marginBottom: 16,
   },
   keepLabel: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 12,
-    letterSpacing: 0.4,
+    fontSize: 11,
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
     color: colors.slateBlue,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   keepBody: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 14,
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 15,
     lineHeight: 21,
-    color: colors.textSecondary,
+    color: colors.navy,
   },
   chart: {
     marginBottom: 22,

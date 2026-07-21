@@ -222,9 +222,13 @@ export function useDragonflyState() {
       const gen = ++aiReviewGenRef.current;
       if (!isOpenAiConfigured()) {
         setAiReviewStatus('fallback');
+        if (cat.outcome !== 'lost') animateScore(cat.score);
+        else setScoreDisplay(cat.score);
         return;
       }
       setAiReviewStatus('loading');
+      // Hold score until AI returns — never flash the local average then swap.
+      setScoreDisplay(0);
       void (async () => {
         try {
           const review = await reviewFightWithOpenAI({
@@ -232,21 +236,21 @@ export function useDragonflyState() {
             fightSeconds: cat.fightSeconds,
             location: cat.location,
             samples,
-            baselineAverage: cat.score,
-            baselineSummary: cat.coachingSummary,
-            baselineWhatWentWell: cat.whatWentWell,
-            baselineImprovement: cat.improvement,
+            averageTension: cat.averageSignal ?? cat.score,
           });
           if (gen !== aiReviewGenRef.current) return;
           const enriched: Catch = {
             ...cat,
             score: review.score,
-            coachingSummary: review.summary,
-            whatWentWell: review.whatWentWell,
-            improvement: review.improvement,
+            coachingSummary: `${review.highlight} · Tip: ${review.tip}`,
+            whatWentWell: review.highlight,
+            improvement: review.tip,
             scoreSource: 'openai',
-            scoreRationale: review.scoreRationale,
+            scoreRationale: review.highlight,
             aiModel: review.model,
+            consistencyIndex: review.consistency,
+            controlIndex: review.control,
+            recoveryIndex: review.recovery,
           };
           setLastCatch(enriched);
           if (enriched.outcome !== 'lost') {
@@ -257,7 +261,10 @@ export function useDragonflyState() {
           setAiReviewStatus('ready');
         } catch {
           if (gen !== aiReviewGenRef.current) return;
+          // Fallback once — show local average only after AI fails.
           setAiReviewStatus('error');
+          if (cat.outcome !== 'lost') animateScore(cat.score);
+          else setScoreDisplay(cat.score);
         }
       })();
     },
@@ -268,14 +275,19 @@ export function useDragonflyState() {
     (cat: Catch, samples: number[]) => {
       setPhase(cat.outcome === 'lost' ? 'lost' : 'score');
       setLastCatch(cat);
-      setScoreDisplay(0);
       setForm(EMPTY_FORM);
-      if (cat.outcome !== 'lost') {
-        animateScore(cat.score);
+      if (isOpenAiConfigured()) {
+        setScoreDisplay(0);
+        requestAiReview(cat, samples);
       } else {
-        setScoreDisplay(cat.score);
+        setAiReviewStatus('fallback');
+        if (cat.outcome !== 'lost') {
+          setScoreDisplay(0);
+          animateScore(cat.score);
+        } else {
+          setScoreDisplay(cat.score);
+        }
       }
-      requestAiReview(cat, samples);
     },
     [animateScore, requestAiReview]
   );
