@@ -27,6 +27,8 @@ export interface SocialActivity {
   species?: string;
   caption?: string;
   imageUri?: string;
+  /** Multiple photos for trip/session carousels (Strava-style). */
+  imageUris?: string[];
   kudos: number;
   comments: number;
   /** When true, this is seeded club content (not the user's). */
@@ -66,6 +68,7 @@ export const CLUB_FEED: SocialActivity[] = [
     species: 'Largemouth bass',
     caption: 'Kiddo kept the drag steady after the second run.',
     imageUri: catchPhotoUri('bass'),
+    imageUris: [catchPhotoUri('bass')],
     kudos: 24,
     comments: 6,
     community: true,
@@ -84,6 +87,7 @@ export const CLUB_FEED: SocialActivity[] = [
     fights: 4,
     caption: 'Fog lifted around 8. Everyone landed at least one.',
     imageUri: catchPhotoUri('trout'),
+    imageUris: [catchPhotoUri('trout'), catchPhotoUri('bass'), catchPhotoUri('cutthroat')],
     kudos: 41,
     comments: 11,
     community: true,
@@ -101,6 +105,7 @@ export const CLUB_FEED: SocialActivity[] = [
     score: 71,
     caption: 'No keepers — plenty of coaching reps.',
     imageUri: catchPhotoUri('cutthroat'),
+    imageUris: [catchPhotoUri('cutthroat'), catchPhotoUri('trout')],
     kudos: 18,
     comments: 4,
     community: true,
@@ -119,6 +124,7 @@ export const CLUB_FEED: SocialActivity[] = [
     species: 'Bluegill',
     caption: 'She set the hook herself. DragonFly kept the line honest.',
     imageUri: catchPhotoUri('bass'),
+    imageUris: [catchPhotoUri('bass')],
     kudos: 67,
     comments: 19,
     community: true,
@@ -159,6 +165,7 @@ export function activityFromTrip(trip: FishingTrip, catches: Catch[]): SocialAct
   const total = members.reduce((s, c) => s + c.fightSeconds, 0);
   const best = members.reduce((m, c) => Math.max(m, c.score), 0);
   const photo = members.find((c) => c.imageUri)?.imageUri;
+  const photos = members.map((c) => c.imageUri).filter(Boolean) as string[];
   return {
     id: `trip-${trip.id}`,
     athlete: YOU,
@@ -173,6 +180,7 @@ export function activityFromTrip(trip: FishingTrip, catches: Catch[]): SocialAct
     fights: members.length,
     caption: trip.caption,
     imageUri: photo,
+    imageUris: photos.length ? photos : undefined,
     kudos: 0,
     comments: 0,
     tripId: trip.id,

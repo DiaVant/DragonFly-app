@@ -12,7 +12,7 @@ interface Props {
 }
 
 /**
- * Journey catch row: photo thumbnail + readable species/stats.
+ * Journey catch card: photo on top (score badge upper-right), details below.
  */
 export function CatchCard({ item, onPress, compact }: Props) {
   return (
@@ -22,28 +22,24 @@ export function CatchCard({ item, onPress, compact }: Props) {
       accessibilityRole="button"
       accessibilityLabel={`${item.outcome === 'lost' ? "Didn't land" : 'Catch'}, ${item.species || 'unnamed'}, score ${item.score}`}
     >
-      <View style={[styles.thumb, compact && styles.thumbCompact]}>
+      <View style={[styles.photo, compact && styles.photoCompact]}>
         <CatchPhoto item={item} />
+        <View style={[styles.scoreBadge, item.outcome === 'lost' && styles.scoreBadgeLost]}>
+          <Text style={styles.scoreBadgeText}>{item.score}</Text>
+        </View>
       </View>
 
       <View style={styles.body}>
-        <View style={styles.titleRow}>
-          <View style={styles.titleText}>
-            {item.outcome === 'lost' ? (
-              <Text style={styles.lostTag}>Didn&apos;t land</Text>
-            ) : null}
-            {item.species ? (
-              <Text style={styles.species} numberOfLines={2}>
-                {item.species}
-              </Text>
-            ) : (
-              <Text style={styles.speciesMissing} numberOfLines={2}>
-                {item.outcome === 'lost' ? 'Lost fish — review saved' : 'Species not added'}
-              </Text>
-            )}
-          </View>
-          <Text style={[styles.scoreValue, item.outcome === 'lost' && styles.scoreLost]}>{item.score}</Text>
-        </View>
+        {item.outcome === 'lost' ? <Text style={styles.lostTag}>Didn&apos;t land</Text> : null}
+        {item.species ? (
+          <Text style={styles.species} numberOfLines={2}>
+            {item.species}
+          </Text>
+        ) : (
+          <Text style={styles.speciesMissing} numberOfLines={2}>
+            {item.outcome === 'lost' ? 'Lost fish — review saved' : 'Species not added'}
+          </Text>
+        )}
 
         <View style={styles.statsRow}>
           <Text style={styles.meta}>{fmtElapsed(item.fightSeconds)}</Text>
@@ -70,56 +66,50 @@ export function CatchCard({ item, onPress, compact }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
     backgroundColor: 'rgba(255,255,255,0.72)',
     borderRadius: radii.lg,
     overflow: 'hidden',
-    minHeight: 108,
     borderWidth: 1,
     borderColor: colors.borderFaint,
     ...shadows.card,
   },
-  compact: {
-    minHeight: 96,
-  },
-  thumb: {
-    width: 100,
-    minHeight: 108,
-    alignSelf: 'stretch',
+  compact: {},
+  photo: {
+    width: '100%',
+    height: 200,
     backgroundColor: colors.backgroundAlt,
-    overflow: 'hidden',
+    position: 'relative',
   },
-  thumbCompact: {
-    width: 88,
-    minHeight: 96,
+  photoCompact: {
+    height: 168,
+  },
+  scoreBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    minWidth: 40,
+    height: 32,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: colors.copper,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+    ...shadows.cta,
+  },
+  scoreBadgeLost: {
+    backgroundColor: colors.slateBlue,
+  },
+  scoreBadgeText: {
+    fontFamily: fonts.displayBold,
+    fontSize: 16,
+    color: '#FFF',
+    letterSpacing: -0.3,
   },
   body: {
-    flex: 1,
-    minWidth: 0,
     paddingVertical: 14,
     paddingHorizontal: 14,
-    justifyContent: 'center',
     gap: 6,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  titleText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  scoreValue: {
-    fontFamily: fonts.displayBold,
-    fontSize: 26,
-    letterSpacing: -0.6,
-    color: colors.copper,
-    lineHeight: 28,
-  },
-  scoreLost: {
-    color: colors.slateBlue,
   },
   lostTag: {
     fontFamily: fonts.bodySemiBold,
@@ -127,11 +117,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     color: colors.caution,
-    marginBottom: 2,
   },
   species: {
     fontFamily: fonts.displaySemiBold,
-    fontSize: 17,
+    fontSize: 18,
     letterSpacing: -0.2,
     color: colors.navy,
   },

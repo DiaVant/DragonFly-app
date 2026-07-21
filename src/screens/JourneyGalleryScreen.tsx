@@ -52,7 +52,7 @@ export function JourneyGalleryScreen({ catches, onOpen, onStartFishing }: Props)
         contentContainerStyle={styles.content}
         data={filtered}
         keyExtractor={(item) => item.id}
-        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+        ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
         ListHeaderComponent={
           <View style={styles.header}>
             <AppHeader title="Journey" subtitle="Catches from the water" />
@@ -100,7 +100,7 @@ export function JourneyGalleryScreen({ catches, onOpen, onStartFishing }: Props)
             )}
           </View>
         }
-        renderItem={({ item }) => <CatchCard item={item} onPress={() => onOpen(item.id)} compact />}
+        renderItem={({ item }) => <CatchCard item={item} onPress={() => onOpen(item.id)} />}
         ListFooterComponent={<View style={{ height: 24 }} />}
       />
     </Screen>

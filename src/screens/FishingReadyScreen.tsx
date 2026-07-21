@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { Screen, PrimaryButton, StatusChip, DeviceStatus } from '../ui';
 import { colors, fonts, radii, touchTarget } from '../theme';
 import { AnimatedDragonflyStage } from '../components/AnimatedDragonflyStage';
+import { LocationPill } from '../components/PillBadge';
 import type { FishOnOrigin } from '../components/FishOnExpand';
 import { HARDWARE_NAME } from '../lib/product';
 import type { BleConnectionStatus } from '../types';
@@ -11,9 +12,7 @@ interface Props {
   location: string;
   connectionStatus: BleConnectionStatus;
   onOpenLocation: () => void;
-  /** Start fight / navigate with expand burst origin (mark or Fish On CTA). */
   onFishOn: (origin: FishOnOrigin) => void;
-  /** Practice without hardware — also expands from the CTA. */
   onSimulateFight?: (origin: FishOnOrigin) => void;
   onConnect?: () => void;
   connecting?: boolean;
@@ -51,28 +50,22 @@ export function FishingReadyScreen({
     });
   };
 
+  const statusLabel = connected
+    ? `${HARDWARE_NAME} ready`
+    : busy
+      ? 'Connecting…'
+      : error
+        ? 'Sensor needs attention'
+        : `Connect ${HARDWARE_NAME}`;
+  const statusTone = connected ? 'ok' : busy ? 'caution' : error ? 'alert' : 'neutral';
+
   return (
     <Screen scroll contentStyle={styles.screenContent}>
-      <View style={styles.topRow}>
-        <Text style={styles.kicker}>Ready</Text>
-        <StatusChip
-          label={connected ? `${HARDWARE_NAME} ready` : busy ? 'Connecting…' : 'No sensor'}
-          tone={connected ? 'ok' : busy ? 'caution' : error ? 'alert' : 'neutral'}
-        />
-      </View>
+      <LocationPill location={location} onPress={onOpenLocation} />
 
-      <Pressable
-        style={styles.locationRow}
-        onPress={onOpenLocation}
-        accessibilityRole="button"
-        accessibilityLabel={`Location ${location}. Change location`}
-      >
-        <Text style={styles.locationLabel}>On the water at</Text>
-        <Text style={styles.locationValue} numberOfLines={2}>
-          {location}
-        </Text>
-        <Text style={styles.locationAction}>Change</Text>
-      </Pressable>
+      <View style={styles.statusRow}>
+        <StatusChip label={statusLabel} tone={statusTone} />
+      </View>
 
       <Pressable
         onPress={() => measureAnd('mark', onFishOn)}
@@ -153,40 +146,10 @@ const styles = StyleSheet.create({
   screenContent: {
     paddingBottom: 12,
   },
-  topRow: {
-    flexDirection: 'row',
+  statusRow: {
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 8,
-    marginBottom: 18,
-  },
-  kicker: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 12,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color: colors.slateBlue,
-  },
-  locationRow: {
-    marginBottom: 8,
-  },
-  locationLabel: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  locationValue: {
-    fontFamily: fonts.displaySemiBold,
-    fontSize: 22,
-    letterSpacing: -0.4,
-    color: colors.navy,
-    marginTop: 4,
-  },
-  locationAction: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 13,
-    color: colors.copper,
-    marginTop: 6,
+    marginTop: 14,
+    marginBottom: 4,
   },
   stage: {
     alignSelf: 'center',

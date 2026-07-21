@@ -1,8 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Dimensions,
   Image,
   Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,8 +18,15 @@ import { colors, fonts, radii } from '../theme';
 import type { Catch, FishingTrip } from '../types';
 import { fmtElapsed } from '../lib/format';
 import { type GearConfig } from '../lib/gear';
-import { buildCatchShareMessage, buildTripShareMessage, shareText } from '../lib/share';
+import { buildCatchShareMessage, buildTripShareMessage } from '../lib/share';
 import { resolveCatchImageSource } from '../lib/defaultPhotos';
+import {
+  loadSocialEngagement,
+  saveSocialEngagement,
+  type SocialEngagementStore,
+  type StoredComment,
+} from '../lib/socialEngagement';
+import { ShareDestinationSheet } from '../components/ShareDestinationSheet';
 import {
   activityFromCatch,
   activityFromTrip,
@@ -36,6 +47,8 @@ interface Props {
 
 type Mode = 'feed' | 'compose_catch' | 'compose_trip';
 
+const HERO_W = Math.min(Dimensions.get('window').width, 480);
+
 export function SocialFeedScreen({ catches, trips, gear, onCreateTrip, onStartFishing }: Props) {
   const [mode, setMode] = useState<Mode>('feed');
   const [tab, setTab] = useState<FeedTab>('following');
@@ -44,11 +57,24 @@ export function SocialFeedScreen({ catches, trips, gear, onCreateTrip, onStartFi
   const [caption, setCaption] = useState('');
   const [tripTitle, setTripTitle] = useState('Morning on the water');
   const [status, setStatus] = useState<string | null>(null);
-  const [kudoed, setKudoed] = useState<Record<string, boolean>>({});
-  const [extraKudos, setExtraKudos] = useState<Record<string, number>>({});
-  const [extraComments, setExtraComments] = useState<Record<string, number>>({});
+  const [engagement, setEngagement] = useState<SocialEngagementStore>({ kudoed: {}, comments: {} });
+  const [hydrated, setHydrated] = useState(false);
   const [commentTarget, setCommentTarget] = useState<SocialActivity | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const [plusOpen, setPlusOpen] = useState(false);
+
+  useEffect(() => {
+    void loadSocialEngagement().then((store) => {
+      setEngagement(store);
+      setHydrated(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void saveSocialEngagement(engagement);
+  }, [engagement, hydrated]);
 
   const shareable = useMemo(
     () => catches.filter((c) => c.outcome !== 'lost' || (c.sampleCount ?? 0) > 0),
@@ -61,11 +87,10 @@ export function SocialFeedScreen({ catches, trips, gear, onCreateTrip, onStartFi
     return [...fromTrips, ...fromCatches].sort((a, b) => (a.at < b.at ? 1 : -1));
   }, [trips, shareable, catches]);
 
-  const followingFeed = useMemo(() => {
-    // Your posts + a slice of club so Following feels alive.
-    return [...yourActivities, ...CLUB_FEED]
-      .sort((a, b) => (a.at < b.at ? 1 : -1));
-  }, [yourActivities]);
+  const followingFeed = useMemo(
+    () => [...yourActivities, ...CLUB_FEED].sort((a, b) => (a.at < b.at ? 1 : -1)),
+    [yourActivities]
+  );
 
   const feed: SocialActivity[] =
     tab === 'you' ? yourActivities : tab === 'club' ? CLUB_FEED : followingFeed;
@@ -73,77 +98,52 @@ export function SocialFeedScreen({ catches, trips, gear, onCreateTrip, onStartFi
   const week = useMemo(() => weekStats(catches), [catches]);
 
   const toggleKudos = (id: string) => {
-    setKudoed((prev) => {
-      const next = !prev[id];
-      setExtraKudos((ek) => ({
-        ...ek,
-        [id]: (ek[id] ?? 0) + (next ? 1 : -1),
-      }));
-      return { ...prev, [id]: next };
-    });
+    setEngagement((prev) => ({
+      ...prev,
+      kudoed: { ...prev.kudoed, [id]: !prev.kudoed[id] },
+    }));
   };
 
-  const shareCatch = async (c: Catch) => {
-    const result = await shareText(buildCatchShareMessage(c, gear));
-    setStatus(
-      result === 'shared'
-        ? 'Shared — pick Facebook, Messages, or another app'
-        : result === 'copied'
-          ? 'Copied — paste into Facebook, Messages, or Instagram'
-          : result === 'canceled'
-            ? 'Canceled'
-            : 'Couldn’t share'
-    );
-  };
-
-  const shareActivity = async (item: SocialActivity) => {
+  const openShare = (item: SocialActivity) => {
     if (item.catchId) {
       const c = catches.find((x) => x.id === item.catchId);
       if (c) {
-        await shareCatch(c);
+        setShareMessage(buildCatchShareMessage(c, gear));
         return;
       }
     }
     if (item.tripId) {
       const t = trips.find((x) => x.id === item.tripId);
       if (t) {
-        const result = await shareText(buildTripShareMessage(t, catches, gear));
-        setStatus(
-          result === 'shared'
-            ? 'Shared — pick Facebook, Messages, or another app'
-            : result === 'copied'
-              ? 'Copied — paste into Facebook or Messages'
-              : result === 'canceled'
-                ? 'Canceled'
-                : 'Couldn’t share'
-        );
+        setShareMessage(buildTripShareMessage(t, catches, gear));
         return;
       }
     }
-    const result = await shareText(
+    setShareMessage(
       `${item.title} — ${item.location} · ${fmtElapsed(item.fightSeconds)} · score ${item.score}`
-    );
-    setStatus(
-      result === 'shared'
-        ? 'Shared — pick Facebook, Messages, or another app'
-        : result === 'copied'
-          ? 'Copied — paste into Facebook or Messages'
-          : result === 'canceled'
-            ? 'Canceled'
-            : 'Couldn’t share'
     );
   };
 
   const submitComment = () => {
     if (!commentTarget || !commentDraft.trim()) return;
     const id = commentTarget.id;
-    setExtraComments((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+    const next: StoredComment = {
+      id: `cm-${Date.now()}`,
+      text: commentDraft.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    setEngagement((prev) => ({
+      ...prev,
+      comments: {
+        ...prev.comments,
+        [id]: [...(prev.comments[id] ?? []), next],
+      },
+    }));
     setCommentDraft('');
-    setCommentTarget(null);
-    setStatus('Comment posted');
+    setStatus('Comment saved');
   };
 
-  const publishTrip = async () => {
+  const publishTrip = () => {
     if (!selectedTripIds.length) return;
     const first = catches.find((c) => c.id === selectedTripIds[0]);
     const tripDraft = {
@@ -154,17 +154,11 @@ export function SocialFeedScreen({ catches, trips, gear, onCreateTrip, onStartFi
       caption: caption.trim() || undefined,
     };
     onCreateTrip(tripDraft);
-    const trip: FishingTrip = {
-      ...tripDraft,
-      id: `tmp`,
-      createdAt: new Date().toISOString(),
-    };
-    const result = await shareText(buildTripShareMessage(trip, catches, gear));
     setMode('feed');
     setTab('you');
     setSelectedTripIds([]);
     setCaption('');
-    setStatus(result === 'shared' || result === 'copied' ? 'Trip posted to your feed' : 'Trip saved');
+    setStatus('Trip posted to your feed');
   };
 
   if (mode === 'compose_catch') {
@@ -185,14 +179,15 @@ export function SocialFeedScreen({ catches, trips, gear, onCreateTrip, onStartFi
           </Pressable>
         ))}
         <PrimaryButton
-          label="Post & share"
+          label="Post"
           disabled={!selectedCatchId}
           onPress={() => {
             const c = catches.find((x) => x.id === selectedCatchId);
             if (c) {
-              void shareCatch(c);
+              setShareMessage(buildCatchShareMessage(c, gear));
               setMode('feed');
               setTab('you');
+              setStatus('Catch ready to share');
             }
           }}
           style={styles.cta}
@@ -206,7 +201,7 @@ export function SocialFeedScreen({ catches, trips, gear, onCreateTrip, onStartFi
     return (
       <Screen scroll>
         <Text style={styles.composeTitle}>Post a trip</Text>
-        <Text style={styles.composeSub}>Bundle fights into one outing — like a Strava activity.</Text>
+        <Text style={styles.composeSub}>Bundle fights into one outing.</Text>
         <Text style={styles.label}>Title</Text>
         <TextInput
           value={tripTitle}
@@ -247,7 +242,7 @@ export function SocialFeedScreen({ catches, trips, gear, onCreateTrip, onStartFi
         <PrimaryButton
           label="Post trip"
           disabled={!selectedTripIds.length}
-          onPress={() => void publishTrip()}
+          onPress={publishTrip}
           style={styles.cta}
         />
         <SecondaryButton label="Cancel" onPress={() => setMode('feed')} />
@@ -255,41 +250,38 @@ export function SocialFeedScreen({ catches, trips, gear, onCreateTrip, onStartFi
     );
   }
 
+  const commentList = commentTarget ? engagement.comments[commentTarget.id] ?? [] : [];
+
   return (
     <Screen scroll padded={false} atmosphere={false} contentStyle={styles.feedShell}>
       <View style={styles.topBar}>
-        <View>
-          <Text style={styles.brand}>Club</Text>
-          <Text style={styles.brandSub}>DragonFly network</Text>
+        <View style={styles.segments}>
+          {(
+            [
+              ['following', 'Following'],
+              ['club', 'Club'],
+              ['you', 'You'],
+            ] as const
+          ).map(([id, label]) => (
+            <Pressable
+              key={id}
+              onPress={() => setTab(id)}
+              style={[styles.segment, tab === id && styles.segmentOn]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: tab === id }}
+            >
+              <Text style={[styles.segmentText, tab === id && styles.segmentTextOn]}>{label}</Text>
+            </Pressable>
+          ))}
         </View>
         <Pressable
           style={styles.postBtn}
-          onPress={() => setMode(shareable.length ? 'compose_catch' : 'compose_trip')}
+          onPress={() => setPlusOpen(true)}
           accessibilityRole="button"
-          accessibilityLabel="Post activity"
+          accessibilityLabel="Create post"
         >
           <Text style={styles.postBtnText}>+</Text>
         </Pressable>
-      </View>
-
-      <View style={styles.segments}>
-        {(
-          [
-            ['following', 'Following'],
-            ['club', 'Club'],
-            ['you', 'You'],
-          ] as const
-        ).map(([id, label]) => (
-          <Pressable
-            key={id}
-            onPress={() => setTab(id)}
-            style={[styles.segment, tab === id && styles.segmentOn]}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: tab === id }}
-          >
-            <Text style={[styles.segmentText, tab === id && styles.segmentTextOn]}>{label}</Text>
-          </Pressable>
-        ))}
       </View>
 
       <View style={styles.weekCard}>
@@ -302,44 +294,71 @@ export function SocialFeedScreen({ catches, trips, gear, onCreateTrip, onStartFi
         </View>
       </View>
 
-      <View style={styles.postRow}>
-        <Pressable style={styles.quickPost} onPress={() => setMode('compose_catch')}>
-          <Text style={styles.quickPostText}>Post a catch</Text>
-        </Pressable>
-        <Pressable style={styles.quickPost} onPress={() => setMode('compose_trip')}>
-          <Text style={styles.quickPostText}>Post a trip</Text>
-        </Pressable>
-      </View>
-
       {status ? <Text style={styles.status}>{status}</Text> : null}
 
       {!feed.length ? (
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>Your feed is quiet</Text>
           <Text style={styles.emptyBody}>
-            Land a fight, then post it — or follow Club to see what other anglers are doing.
+            Land a fight, then tap + to post — or browse Club for what other anglers are doing.
           </Text>
           <PrimaryButton label="Fish On" onPress={onStartFishing} style={{ maxWidth: 200 }} />
           <SecondaryButton label="Browse Club" onPress={() => setTab('club')} />
         </View>
       ) : (
-        feed.map((item) => (
-          <ActivityCard
-            key={item.id}
-            item={item}
-            kudoed={Boolean(kudoed[item.id])}
-            kudosCount={item.kudos + (extraKudos[item.id] ?? 0)}
-            commentCount={item.comments + (extraComments[item.id] ?? 0)}
-            onKudos={() => toggleKudos(item.id)}
-            onComment={() => {
-              setCommentTarget(item);
-              setCommentDraft('');
-            }}
-            onShare={() => void shareActivity(item)}
-          />
-        ))
+        feed.map((item) => {
+          const userComments = engagement.comments[item.id] ?? [];
+          const kudoed = Boolean(engagement.kudoed[item.id]);
+          const kudosCount = item.kudos + (kudoed ? 1 : 0);
+          const commentCount = item.comments + userComments.length;
+          return (
+            <ActivityCard
+              key={item.id}
+              item={item}
+              kudoed={kudoed}
+              kudosCount={kudosCount}
+              commentCount={commentCount}
+              onKudos={() => toggleKudos(item.id)}
+              onComment={() => {
+                setCommentTarget(item);
+                setCommentDraft('');
+              }}
+              onShare={() => openShare(item)}
+            />
+          );
+        })
       )}
 
+      {/* Plus menu */}
+      <Modal visible={plusOpen} transparent animationType="fade" onRequestClose={() => setPlusOpen(false)}>
+        <Pressable style={styles.menuBackdrop} onPress={() => setPlusOpen(false)}>
+          <View style={styles.menuSheet}>
+            <Text style={styles.menuTitle}>New post</Text>
+            <Pressable
+              style={styles.menuRow}
+              onPress={() => {
+                setPlusOpen(false);
+                setMode('compose_catch');
+              }}
+            >
+              <Text style={styles.menuRowTitle}>Post a catch</Text>
+              <Text style={styles.menuRowHint}>Share one fight</Text>
+            </Pressable>
+            <Pressable
+              style={styles.menuRow}
+              onPress={() => {
+                setPlusOpen(false);
+                setMode('compose_trip');
+              }}
+            >
+              <Text style={styles.menuRowTitle}>Post a trip</Text>
+              <Text style={styles.menuRowHint}>Bundle an outing</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Comments */}
       <Modal
         visible={commentTarget != null}
         transparent
@@ -348,10 +367,22 @@ export function SocialFeedScreen({ catches, trips, gear, onCreateTrip, onStartFi
       >
         <Pressable style={styles.commentBackdrop} onPress={() => setCommentTarget(null)}>
           <Pressable style={styles.commentSheet} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.commentTitle}>Comment</Text>
+            <Text style={styles.commentTitle}>Comments</Text>
             <Text style={styles.commentSub} numberOfLines={1}>
               {commentTarget?.title}
             </Text>
+            <ScrollView style={styles.commentList} keyboardShouldPersistTaps="handled">
+              {!commentList.length ? (
+                <Text style={styles.commentEmpty}>No comments yet — add the first.</Text>
+              ) : (
+                commentList.map((c) => (
+                  <View key={c.id} style={styles.commentBubble}>
+                    <Text style={styles.commentAuthor}>You</Text>
+                    <Text style={styles.commentBody}>{c.text}</Text>
+                  </View>
+                ))
+              )}
+            </ScrollView>
             <TextInput
               value={commentDraft}
               onChangeText={setCommentDraft}
@@ -359,7 +390,6 @@ export function SocialFeedScreen({ catches, trips, gear, onCreateTrip, onStartFi
               placeholder="Nice fight — keep that drag smooth"
               placeholderTextColor={colors.missing}
               multiline
-              autoFocus
             />
             <PrimaryButton
               label="Post comment"
@@ -367,10 +397,27 @@ export function SocialFeedScreen({ catches, trips, gear, onCreateTrip, onStartFi
               disabled={!commentDraft.trim()}
               style={styles.cta}
             />
-            <SecondaryButton label="Cancel" onPress={() => setCommentTarget(null)} />
+            <SecondaryButton label="Done" onPress={() => setCommentTarget(null)} />
           </Pressable>
         </Pressable>
       </Modal>
+
+      <ShareDestinationSheet
+        visible={shareMessage != null}
+        message={shareMessage ?? ''}
+        onClose={() => setShareMessage(null)}
+        onResult={(result, via) => {
+          setStatus(
+            result === 'shared'
+              ? `Shared via ${via}`
+              : result === 'copied'
+                ? `Copied for ${via}`
+                : result === 'canceled'
+                  ? 'Canceled'
+                  : 'Couldn’t share'
+          );
+        }}
+      />
     </Screen>
   );
 }
@@ -382,6 +429,54 @@ function WeekStat({ label, value, mono }: { label: string; value: string; mono?:
       <Text style={[styles.weekValue, mono && styles.mono]} numberOfLines={1}>
         {value}
       </Text>
+    </View>
+  );
+}
+
+function PhotoCarousel({ uris, location }: { uris: string[]; location: string }) {
+  const [index, setIndex] = useState(0);
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const x = e.nativeEvent.contentOffset.x;
+    setIndex(Math.round(x / HERO_W));
+  };
+  return (
+    <View style={styles.heroWrap}>
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        style={{ width: HERO_W }}
+      >
+        {uris.map((uri, i) => {
+          const src = resolveCatchImageSource(uri);
+          return (
+            <View key={`${uri}-${i}`} style={{ width: HERO_W, height: 220 }}>
+              {src ? (
+                <Image source={src} style={styles.hero} resizeMode="cover" />
+              ) : (
+                <View style={[styles.hero, { backgroundColor: colors.navy }]} />
+              )}
+            </View>
+          );
+        })}
+      </ScrollView>
+      <LinearGradient colors={['transparent', 'rgba(15,28,42,0.72)']} style={styles.heroFade}>
+        <Text style={styles.mapPlace}>{location}</Text>
+        {uris.length > 1 ? (
+          <Text style={styles.carouselCount}>
+            {index + 1}/{uris.length}
+          </Text>
+        ) : null}
+      </LinearGradient>
+      {uris.length > 1 ? (
+        <View style={styles.dots}>
+          {uris.map((_, i) => (
+            <View key={i} style={[styles.dot, i === index && styles.dotOn]} />
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -404,7 +499,14 @@ function ActivityCard({
   onShare: () => void;
 }) {
   const athlete = item.athlete ?? YOU;
-  const photo = resolveCatchImageSource(item.imageUri);
+  const uris =
+    item.imageUris?.length
+      ? item.imageUris
+      : item.imageUri
+        ? [item.imageUri]
+        : [];
+  const showCarousel = uris.length > 0;
+
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
@@ -422,16 +524,8 @@ function ActivityCard({
       <Text style={styles.activityTitle}>{item.title}</Text>
       {item.caption ? <Text style={styles.caption}>{item.caption}</Text> : null}
 
-      {photo ? (
-        <View style={styles.heroWrap}>
-          <Image source={photo} style={styles.hero} resizeMode="cover" />
-          <LinearGradient
-            colors={['transparent', 'rgba(15,28,42,0.72)']}
-            style={styles.heroFade}
-          >
-            <Text style={styles.mapPlace}>{item.location}</Text>
-          </LinearGradient>
-        </View>
+      {showCarousel ? (
+        <PhotoCarousel uris={uris} location={item.location} />
       ) : (
         <LinearGradient
           colors={heroColors(item.kind)}
@@ -441,7 +535,7 @@ function ActivityCard({
         >
           <Text style={styles.mapPlace}>{item.location}</Text>
           <Text style={styles.mapKind}>
-            {item.kind === 'trip' ? 'Outing route' : item.kind === 'session' ? 'Session' : 'Fight path'}
+            {item.kind === 'trip' ? 'Outing' : item.kind === 'session' ? 'Session' : 'Fight'}
           </Text>
         </LinearGradient>
       )}
@@ -486,12 +580,7 @@ function ActivityCard({
           <Text style={styles.actionIcon}>◎</Text>
           <Text style={styles.actionLabel}>Comment</Text>
         </Pressable>
-        <Pressable
-          onPress={onShare}
-          style={styles.action}
-          accessibilityRole="button"
-          accessibilityHint="Share to Facebook, Messages, or other apps"
-        >
+        <Pressable onPress={onShare} style={styles.action} accessibilityRole="button">
           <Text style={styles.actionIcon}>↗</Text>
           <Text style={styles.actionLabel}>Share</Text>
         </Pressable>
@@ -527,46 +616,18 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingTop: 10,
     paddingBottom: 8,
     backgroundColor: colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  brand: {
-    fontFamily: fonts.displayBold,
-    fontSize: 26,
-    letterSpacing: -0.6,
-    color: colors.navy,
-  },
-  brandSub: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 12,
-    color: colors.textMuted,
-    marginTop: 1,
-  },
-  postBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.copper,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  postBtnText: {
-    fontFamily: fonts.displayBold,
-    fontSize: 26,
-    color: colors.textOnAccent,
-    marginTop: -2,
-  },
   segments: {
+    flex: 1,
     flexDirection: 'row',
-    backgroundColor: colors.surface,
-    paddingHorizontal: 12,
-    paddingBottom: 10,
-    gap: 6,
+    gap: 4,
   },
   segment: {
     flex: 1,
@@ -584,6 +645,20 @@ const styles = StyleSheet.create({
   },
   segmentTextOn: {
     color: colors.copper,
+  },
+  postBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.copper,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  postBtnText: {
+    fontFamily: fonts.displayBold,
+    fontSize: 26,
+    color: colors.textOnAccent,
+    marginTop: -2,
   },
   weekCard: {
     marginHorizontal: 12,
@@ -615,33 +690,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.navy,
   },
-  postRow: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 12,
-    marginTop: 10,
-    marginBottom: 6,
-  },
-  quickPost: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  quickPostText: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 13,
-    color: colors.navy,
-  },
   status: {
     fontFamily: fonts.bodyMedium,
     fontSize: 13,
     color: colors.sage,
     paddingHorizontal: 16,
-    marginBottom: 8,
+    marginTop: 10,
   },
   empty: {
     padding: 28,
@@ -717,10 +771,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 10,
   },
-  hero: {
-    width: '100%',
-    height: 220,
-  },
+  hero: { width: '100%', height: 220 },
   heroWrap: {
     width: '100%',
     height: 220,
@@ -739,7 +790,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     justifyContent: 'flex-end',
     padding: 16,
-    overflow: 'hidden',
   },
   mapPlace: {
     fontFamily: fonts.displaySemiBold,
@@ -751,6 +801,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255,255,255,0.78)',
     marginTop: 2,
+  },
+  carouselCount: {
+    fontFamily: fonts.monoRegular,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 4,
+  },
+  dots: {
+    position: 'absolute',
+    bottom: 10,
+    alignSelf: 'center',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+  },
+  dotOn: {
+    backgroundColor: '#FFF',
+    width: 16,
   },
   stats: {
     flexDirection: 'row',
@@ -870,6 +946,48 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   cta: { marginTop: 16, marginBottom: 10 },
+  menuBackdrop: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 56,
+    paddingRight: 14,
+  },
+  menuSheet: {
+    width: 220,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  menuTitle: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: colors.slateBlue,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  menuRow: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  menuRowTitle: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 15,
+    color: colors.navy,
+  },
+  menuRowHint: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
   commentBackdrop: {
     flex: 1,
     backgroundColor: colors.overlay,
@@ -882,6 +1000,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 18,
     paddingBottom: 28,
+    maxHeight: '78%',
   },
   commentTitle: {
     fontFamily: fonts.displaySemiBold,
@@ -894,5 +1013,33 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 4,
     marginBottom: 12,
+  },
+  commentList: {
+    maxHeight: 180,
+    marginBottom: 10,
+  },
+  commentEmpty: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 14,
+    color: colors.textMuted,
+    paddingVertical: 12,
+  },
+  commentBubble: {
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: radii.md,
+    padding: 12,
+    marginBottom: 8,
+  },
+  commentAuthor: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 12,
+    color: colors.slateBlue,
+    marginBottom: 4,
+  },
+  commentBody: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 14,
+    color: colors.navy,
+    lineHeight: 20,
   },
 });

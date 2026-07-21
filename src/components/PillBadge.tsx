@@ -12,20 +12,23 @@ export function LocationPill({ location, onPress }: Props) {
   const content = (
     <>
       <View style={styles.dot} />
-      <Text style={styles.label}>Fishing at:</Text>
-      <Text style={styles.value}>{location}</Text>
-      <Text style={styles.caret}>&#9662;</Text>
+      <Text style={styles.label}>Fishing at</Text>
+      <Text style={styles.value} numberOfLines={1}>
+        {location}
+      </Text>
+      <Text style={styles.caret}>Change</Text>
     </>
   );
   if (!onPress) {
-    return (
-      <View style={styles.pill}>
-        {content}
-      </View>
-    );
+    return <View style={styles.bar}>{content}</View>;
   }
   return (
-    <Pressable style={styles.pill} onPress={onPress}>
+    <Pressable
+      style={styles.bar}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Location ${location}. Change location`}
+    >
       {content}
     </Pressable>
   );
@@ -41,17 +44,17 @@ export function LocationBadge({ location }: { location: string }) {
 }
 
 const styles = StyleSheet.create({
-  pill: {
-    alignSelf: 'center',
+  bar: {
+    alignSelf: 'stretch',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingVertical: 9,
-    paddingHorizontal: 16,
-    borderRadius: 100,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
   },
   badge: {
     alignSelf: 'center',
@@ -77,7 +80,8 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyRegular,
   },
   value: {
-    fontSize: 13,
+    flex: 1,
+    fontSize: 14,
     fontWeight: '600',
     color: colors.navy,
     fontFamily: fonts.bodySemiBold,
@@ -89,7 +93,8 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemiBold,
   },
   caret: {
-    color: colors.missing,
-    fontSize: 11,
+    color: colors.copper,
+    fontSize: 13,
+    fontFamily: fonts.bodySemiBold,
   },
 });

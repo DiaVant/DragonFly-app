@@ -56,26 +56,52 @@ export interface NearestWaterResult {
   withinCatalog: boolean;
 }
 
+export interface NearbyWater extends FishingWater {
+  distanceKm: number;
+}
+
 /** Match GPS to the closest curated fishing water. */
 export function nearestFishingWater(
   lat: number,
   lng: number,
-  maxKm = 45
+  maxKm = 80
 ): NearestWaterResult {
-  let best = FISHING_WATERS[0]!;
-  let bestDist = Infinity;
-  for (const water of FISHING_WATERS) {
-    const d = haversineKm(lat, lng, water.lat, water.lng);
-    if (d < bestDist) {
-      bestDist = d;
-      best = water;
-    }
-  }
+  const ranked = nearbyFishingWaters(lat, lng, { limit: 1, maxKm: Infinity });
+  const best = ranked[0]!;
   return {
     water: best,
-    distanceKm: bestDist,
-    withinCatalog: bestDist <= maxKm,
+    distanceKm: best.distanceKm,
+    withinCatalog: best.distanceKm <= maxKm,
   };
+}
+
+/**
+ * Waters near a coordinate, closest first.
+ * Always returns at least a few closest spots even outside maxKm.
+ */
+export function nearbyFishingWaters(
+  lat: number,
+  lng: number,
+  options?: { maxKm?: number; limit?: number; minResults?: number }
+): NearbyWater[] {
+  const maxKm = options?.maxKm ?? 120;
+  const limit = options?.limit ?? 8;
+  const minResults = options?.minResults ?? 4;
+
+  const ranked = FISHING_WATERS.map((water) => ({
+    ...water,
+    distanceKm: haversineKm(lat, lng, water.lat, water.lng),
+  })).sort((a, b) => a.distanceKm - b.distanceKm);
+
+  const within = ranked.filter((w) => w.distanceKm <= maxKm);
+  const list = within.length >= minResults ? within : ranked.slice(0, Math.max(minResults, within.length));
+  return list.slice(0, limit);
+}
+
+export function formatDistanceKm(km: number): string {
+  if (km < 1) return `${Math.round(km * 1000)} m`;
+  if (km < 10) return `${km.toFixed(1)} km`;
+  return `${Math.round(km)} km`;
 }
 
 export function formatGpsLabel(
