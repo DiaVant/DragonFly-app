@@ -5,11 +5,9 @@ import { writeSessionFile } from '../lib/sessionFile';
 import type { BleConnectionStatus, DragonflySessionFile } from '../types';
 
 //AI SCORE RANGE
-const MIN_SAFE_TENSION = 2.5;
-const MAX_SAFE_TENSION = 0.5;
+const MIN_SAFE_TENSION = .5;
+const MAX_SAFE_TENSION = 2.5;
 
-
-const NUMERIC_PATTERN = /^-?\d+(\.\d+)?$/;
 
 function emptySessionFile(startedAt: string): DragonflySessionFile {
   return {
@@ -177,14 +175,13 @@ export function useBleSession() {
   const [awaitingEnd, setAwaitingEnd] = useState(false);
   const [receiving, setReceiving] = useState(false);
   const [values, setValues] = useState<number[]>([]);
-  const [expectedCount, setExpectedCount] = useState<number | null>(null);
+  const [currentTension, setCurrentTension] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [finalScore, setFinalScore] = useState<number | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
 
   const valuesRef = useRef<number[]>([]);
-  const expectedCountRef = useRef<number | null>(null);
   const collectingRef = useRef(false);
   const receivingRef = useRef(false);
   const startedAtRef = useRef<string | null>(null);
@@ -194,7 +191,7 @@ export function useBleSession() {
     const session: DragonflySessionFile = {
       startedAt: startedAtRef.current ?? new Date().toISOString(),
       stoppedAt: stoppedAtRef.current,
-      expectedCount: expectedCountRef.current,
+      expectedCount: null,
       sampleCount: 0,
       values: [],
       average: null,
@@ -207,11 +204,10 @@ export function useBleSession() {
       // Surface the original failure even if we can't persist the error state.
     }
     valuesRef.current = [];
-    expectedCountRef.current = null;
     collectingRef.current = false;
     receivingRef.current = false;
     setValues([]);
-    setExpectedCount(null);
+    setCurrentTension(null);
     setCollecting(false);
     setAwaitingEnd(false);
     setReceiving(false);
@@ -223,14 +219,9 @@ export function useBleSession() {
   const finalizeSession = useCallback(async () => {
     if (!collectingRef.current) return;
     const collected = valuesRef.current;
-    const expected = expectedCountRef.current;
 
     if (collected.length === 0) {
       await finishWithError('No values were received from DragonFly.');
-      return;
-    }
-    if (expected != null && collected.length !== expected) {
-      await finishWithError(`Expected ${expected} values from DragonFly but received ${collected.length}.`);
       return;
     }
 
@@ -246,7 +237,7 @@ export function useBleSession() {
     const session: DragonflySessionFile = {
       startedAt: startedAtRef.current ?? new Date().toISOString(),
       stoppedAt: stoppedAtRef.current,
-      expectedCount: expected,
+      expectedCount: null,
       sampleCount: collected.length,
       values: collected,
       average,
@@ -274,14 +265,6 @@ export function useBleSession() {
       if (!text) return; // Ignore empty messages.
       if (!collectingRef.current) return; // Ignore stray notifications outside an active session.
 
-      if (text.startsWith('COUNT:')) {
-        const n = Number(text.slice('COUNT:'.length).trim());
-        if (Number.isInteger(n) && n >= 0) {
-          expectedCountRef.current = n;
-          setExpectedCount(n);
-        }
-        return;
-      }
       if (text === 'END') {
         finalizeSession();
         return;
@@ -289,14 +272,15 @@ export function useBleSession() {
       if (text === CMD_START || text === CMD_STOP) {
         return; // Never treat command echoes as numeric values.
       }
-      if (!NUMERIC_PATTERN.test(text)) {
+      const tension = Number(text);
+      if (!Number.isFinite(tension)) {
         finishWithError(`Received an invalid value from DragonFly: "${text}".`);
         return;
       }
 
-      const value = Number(text);
-      valuesRef.current = [...valuesRef.current, value];
-      setValues(valuesRef.current);
+      valuesRef.current.push(tension);
+      setValues([...valuesRef.current]);
+      setCurrentTension(tension);
       if (!receivingRef.current) {
         receivingRef.current = true;
         setReceiving(true);
@@ -343,10 +327,9 @@ export function useBleSession() {
     setError(null);
     setStarting(true);
     valuesRef.current = [];
-    expectedCountRef.current = null;
     receivingRef.current = false;
     setValues([]);
-    setExpectedCount(null);
+    setCurrentTension(null);
     setReceiving(false);
     setFinalScore(null);
     setAwaitingEnd(false);
@@ -374,6 +357,9 @@ export function useBleSession() {
       return false;
     }
 
+    collectingRef.current = true;
+    setCollecting(true);
+
     try {
       await sendCommand(CMD_START);
     } catch {
@@ -381,8 +367,6 @@ export function useBleSession() {
       return false;
     }
 
-    collectingRef.current = true;
-    setCollecting(true);
     setStarting(false);
     return true;
   }, [ensureConnectedAndSubscribed, sendCommand, finishWithError]);
@@ -391,17 +375,16 @@ export function useBleSession() {
     if (!collectingRef.current || awaitingEnd) return;
     setStopping(true);
     const stoppedAt = new Date().toISOString();
+    stoppedAtRef.current = stoppedAt;
+    setAwaitingEnd(true);
     try {
       await sendCommand(CMD_STOP);
     } catch {
-      setStopping(false);
-      setError('Failed to send the stop command to DragonFly.');
+      await finishWithError('Failed to send the stop command to DragonFly.');
       return;
     }
-    stoppedAtRef.current = stoppedAt;
-    setAwaitingEnd(true);
     setStopping(false);
-  }, [sendCommand, awaitingEnd]);
+  }, [sendCommand, awaitingEnd, finishWithError]);
 
   return {
     connectionStatus,
@@ -413,7 +396,7 @@ export function useBleSession() {
     awaitingEnd,
     receiving,
     values,
-    expectedCount,
+    currentTension,
     error,
     finalScore,
     connect,

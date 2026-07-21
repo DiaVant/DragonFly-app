@@ -10,12 +10,13 @@ import { fmtElapsed } from '../lib/format';
 interface Props {
   location: string;
   elapsed: number;
+  currentTension: number | null;
   onLandFish: () => void;
   awaitingEnd?: boolean;
   stopping?: boolean;
 }
 
-export function FishingActiveScreen({ location, elapsed, onLandFish, awaitingEnd, stopping }: Props) {
+export function FishingActiveScreen({ location, elapsed, currentTension, onLandFish, awaitingEnd, stopping }: Props) {
   const waiting = Boolean(awaitingEnd || stopping);
   return (
     <View style={styles.container}>
@@ -23,6 +24,12 @@ export function FishingActiveScreen({ location, elapsed, onLandFish, awaitingEnd
       <View style={styles.center}>
         <Text style={styles.eyebrow}>{waiting ? 'Ending fight' : 'Fight in progress'}</Text>
         <Text style={styles.timer}>{fmtElapsed(elapsed)}</Text>
+        <View style={styles.currentTension}>
+          <Text style={styles.currentTensionLabel}>Current Tension</Text>
+          <Text style={styles.currentTensionValue}>
+            {currentTension == null ? '—' : currentTension.toFixed(1)}
+          </Text>
+        </View>
         <View style={styles.tensionWrap}>
           <TensionLine />
         </View>
@@ -63,6 +70,22 @@ const styles = StyleSheet.create({
   },
   tensionWrap: {
     marginTop: 8,
+  },
+  currentTension: {
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  currentTensionLabel: {
+    fontSize: 11,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    color: colors.textSecondary,
+  },
+  currentTensionValue: {
+    fontFamily: fonts.displaySemiBold,
+    fontSize: 34,
+    lineHeight: 40,
+    color: colors.copper,
   },
   subtext: {
     fontSize: 12,

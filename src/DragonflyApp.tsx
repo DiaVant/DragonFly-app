@@ -52,6 +52,7 @@ export function DragonflyApp() {
         <FishingActiveScreen
           location={state.location}
           elapsed={state.elapsed}
+          currentTension={state.ble.currentTension}
           onLandFish={actions.landFish}
           awaitingEnd={state.ble.awaitingEnd}
           stopping={state.ble.stopping}

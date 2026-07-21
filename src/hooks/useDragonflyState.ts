@@ -126,7 +126,7 @@ export function useDragonflyState() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ble.finalScore]);
 
-  // Any BLE session failure (connect, write, disconnect, invalid data, COUNT mismatch, save
+  // Any BLE session failure (connect, write, disconnect, invalid data, save
   // failure) aborts without a score and returns the user to the Ready screen to retry.
   useEffect(() => {
     if (!ble.error) return;
@@ -222,6 +222,7 @@ export function useDragonflyState() {
       connectionStatus: ble.connectionStatus,
       setupConnecting: ble.connecting,
       connectError: ble.connectError,
+      currentTension: ble.currentTension,
     },
     actions: {
       goHome, goFishing, goJourney, openLoc, closeLoc, setLoc,
