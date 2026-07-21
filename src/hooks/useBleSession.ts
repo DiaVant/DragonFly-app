@@ -4,9 +4,9 @@ import { getBleTransport } from '../ble/transport';
 import { writeSessionFile } from '../lib/sessionFile';
 import type { BleConnectionStatus, DragonflySessionFile } from '../types';
 
-//AI SCORE:
-const MIN_SAFE_TENSION = 30;
-const MAX_SAFE_TENSION = 70;
+//AI SCORE RANGE
+const MIN_SAFE_TENSION = 2.5;
+const MAX_SAFE_TENSION = 0.5;
 
 
 const NUMERIC_PATTERN = /^-?\d+(\.\d+)?$/;
