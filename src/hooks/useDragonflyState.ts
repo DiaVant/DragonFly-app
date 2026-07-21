@@ -167,8 +167,8 @@ export function useDragonflyState() {
 
   const liveValues = simulating ? simValues : ble.values;
   const signalStats = useMemo(
-    () => computeSignalStats(liveValues, simulating ? null : ble.expectedCount),
-    [liveValues, simulating, ble.expectedCount]
+    () => computeSignalStats(liveValues, null),
+    [liveValues]
   );
 
   const clearFightTimer = useCallback(() => {
@@ -597,7 +597,12 @@ export function useDragonflyState() {
       connectError: ble.connectError,
       values: liveValues,
       sampleCount: liveValues.length,
-      expectedCount: simulating ? null : ble.expectedCount,
+      expectedCount: null as number | null,
+      currentTension: simulating
+        ? liveValues.length
+          ? liveValues[liveValues.length - 1]!
+          : null
+        : ble.currentTension,
       receiving: simulating ? liveValues.length > 0 : ble.receiving,
       collecting: simulating || ble.collecting,
       latestSample: signalStats.latest,

@@ -15,6 +15,8 @@ interface Props {
   samples: number[];
   sampleCount: number;
   expectedCount: number | null;
+  /** Live BLE tension sample (null while waiting). */
+  currentTension?: number | null;
   receiving: boolean;
   onLandFish: () => void;
   onLoseFish: () => void;
@@ -33,6 +35,7 @@ export function FishingActiveScreen({
   elapsed,
   samples,
   sampleCount,
+  currentTension,
   receiving,
   onLandFish,
   onLoseFish,
@@ -87,7 +90,12 @@ export function FishingActiveScreen({
   }, [samples, nowMs]);
 
   const chartSamples = samples.slice(-48);
-  const latest = samples.length ? samples[samples.length - 1]! : null;
+  const latest =
+    currentTension != null
+      ? currentTension
+      : samples.length
+        ? samples[samples.length - 1]!
+        : null;
   const baseline = coaching.baseline;
 
   const drag = dragAdvice.value;
@@ -152,6 +160,13 @@ export function FishingActiveScreen({
             <Text style={styles.timer} accessibilityLabel={`Elapsed ${fmtElapsed(elapsed)}`}>
               {fmtElapsed(elapsed)}
             </Text>
+
+            <View style={styles.liveTension} accessibilityLabel={`Current tension ${latest == null ? 'waiting' : latest.toFixed(1)}`}>
+              <Text style={styles.liveTensionLabel}>Live tension</Text>
+              <Text style={styles.liveTensionValue}>
+                {latest == null ? '—' : latest.toFixed(1)}
+              </Text>
+            </View>
 
             <View
               style={styles.dragBlock}
@@ -243,7 +258,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   mid: {
-    height: 148,
+    height: 178,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -273,6 +288,23 @@ const styles = StyleSheet.create({
     color: colors.navy,
     marginBottom: 8,
     letterSpacing: -0.5,
+  },
+  liveTension: {
+    marginBottom: 8,
+  },
+  liveTensionLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: colors.slateBlue,
+  },
+  liveTensionValue: {
+    fontFamily: fonts.displaySemiBold,
+    fontSize: 28,
+    lineHeight: 32,
+    color: colors.copper,
+    letterSpacing: -0.4,
   },
   dragBlock: {
     height: 78,

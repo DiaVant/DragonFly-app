@@ -176,6 +176,7 @@ export function DragonflyApp() {
           samples={state.ble.values}
           sampleCount={state.ble.sampleCount}
           expectedCount={state.ble.expectedCount}
+          currentTension={state.ble.currentTension}
           receiving={state.ble.receiving}
           onLandFish={actions.landFish}
           onLoseFish={actions.loseFish}
