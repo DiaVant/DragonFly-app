@@ -1,15 +1,67 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Catch, CatchForm, Phase, Route, Tab } from '../types';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Catch, CatchForm, FightOutcome, Phase, Route, Tab } from '../types';
 import { fmtDate, fmtTime } from '../lib/format';
-import { DEFAULT_LOCATION, loadCatches, loadLocation, saveCatches, saveLocation, seedCatches } from '../lib/storage';
+import {
+  DEFAULT_LOCATION,
+  computeJourneySummary,
+  loadCatches,
+  loadLocation,
+  saveCatches,
+  saveLocation,
+  seedCatches,
+} from '../lib/storage';
+import { buildSessionAnalytics } from '../coaching/analytics';
+import { computeSignalStats } from '../coaching/engine';
+import { createFightSimulator } from '../sim/fightSimulator';
+import { isOpenAiConfigured } from '../ai/openaiConfig';
+import { reviewFightWithOpenAI } from '../ai/fightReview';
 import { useBleSession } from './useBleSession';
 
 export const LOCATIONS = ['Lake Sammamish', 'Lake Washington', 'Snoqualmie River', 'Green Lake', 'Lake Union'];
 
-const EMPTY_FORM: CatchForm = { species: '', size: '', weight: '', photo: false };
+export type AiReviewStatus = 'idle' | 'loading' | 'ready' | 'fallback' | 'error';
+
+const EMPTY_FORM: CatchForm = { species: '', size: '', weight: '', photo: false, imageUri: undefined };
+
+function finalizeCatchFromSamples(
+  samples: number[],
+  fightSeconds: number,
+  location: string,
+  outcome: FightOutcome
+): Catch {
+  const analytics = buildSessionAnalytics(samples, outcome);
+  const avg =
+    samples.length > 0 ? samples.reduce((a, b) => a + b, 0) / samples.length : 0;
+  const score = Math.round(avg);
+  const now = new Date();
+  return {
+    id: `c${Date.now()}`,
+    species: '',
+    score,
+    fightSeconds,
+    size: '',
+    weight: '',
+    location,
+    date: fmtDate(now),
+    time: fmtTime(now),
+    photo: false,
+    outcome,
+    sampleCount: analytics.sampleCount,
+    averageSignal: analytics.averageSignal ?? undefined,
+    minimumSignal: analytics.minimumSignal ?? undefined,
+    maximumSignal: analytics.maximumSignal ?? undefined,
+    signalVariability: analytics.signalVariability ?? undefined,
+    relativeTensionSeries: analytics.relativeTensionSeries,
+    coachingSummary: analytics.coachingSummary,
+    coachingEvents: analytics.coachingEvents,
+    whatWentWell: analytics.whatWentWell,
+    improvement: analytics.improvement,
+    scoreSource: 'average',
+  };
+}
 
 export function useDragonflyState() {
-  const [tab, setTab] = useState<Tab>('fishing');
+  const [tab, setTab] = useState<Tab>('home');
   const [phase, setPhase] = useState<Phase>('ready');
   const [location, setLocation] = useState(DEFAULT_LOCATION);
   const [elapsed, setElapsed] = useState(0);
@@ -21,10 +73,19 @@ export function useDragonflyState() {
   const [editing, setEditing] = useState(false);
   const [catches, setCatches] = useState<Catch[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const [customLocations, setCustomLocations] = useState<string[]>([]);
+  const [simulating, setSimulating] = useState(false);
+  const [simValues, setSimValues] = useState<number[]>([]);
+  const [simEnding, setSimEnding] = useState(false);
+  const [aiReviewStatus, setAiReviewStatus] = useState<AiReviewStatus>('idle');
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scoreTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedRef = useRef(0);
+  const lastValuesRef = useRef<number[]>([]);
+  const simRef = useRef(createFightSimulator({ intervalMs: 120 }));
+  const pendingOutcomeRef = useRef<FightOutcome>('landed');
+  const aiReviewGenRef = useRef(0);
 
   const ble = useBleSession();
 
@@ -53,11 +114,44 @@ export function useDragonflyState() {
   }, [location, hydrated]);
 
   useEffect(() => {
+    if (!simulating) lastValuesRef.current = ble.values;
+  }, [ble.values, simulating]);
+
+  useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (scoreTimerRef.current) clearInterval(scoreTimerRef.current);
+      simRef.current.stop();
     };
   }, []);
+
+  const locations = useMemo(() => {
+    const extras = customLocations.filter((l) => !LOCATIONS.includes(l));
+    return [...LOCATIONS, ...extras];
+  }, [customLocations]);
+
+  const journeySummary = useMemo(() => computeJourneySummary(catches), [catches]);
+
+  const liveValues = simulating ? simValues : ble.values;
+  const signalStats = useMemo(
+    () => computeSignalStats(liveValues, simulating ? null : ble.expectedCount),
+    [liveValues, simulating, ble.expectedCount]
+  );
+
+  const clearFightTimer = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
+  }, []);
+
+  const beginFightTimer = useCallback(() => {
+    clearFightTimer();
+    elapsedRef.current = 0;
+    setElapsed(0);
+    timerRef.current = setInterval(() => {
+      elapsedRef.current += 1;
+      setElapsed(elapsedRef.current);
+    }, 1000);
+  }, [clearFightTimer]);
 
   const go = useCallback((next: Tab) => {
     setTab(next);
@@ -72,6 +166,7 @@ export function useDragonflyState() {
   const closeLoc = useCallback(() => setLocOpen(false), []);
   const setLoc = useCallback((name: string) => {
     setLocation(name);
+    setCustomLocations((prev) => (LOCATIONS.includes(name) || prev.includes(name) ? prev : [...prev, name]));
     setLocOpen(false);
   }, []);
 
@@ -89,49 +184,162 @@ export function useDragonflyState() {
     }, 40);
   }, []);
 
+  const requestAiReview = useCallback(
+    (cat: Catch, samples: number[]) => {
+      const gen = ++aiReviewGenRef.current;
+      if (!isOpenAiConfigured()) {
+        setAiReviewStatus('fallback');
+        return;
+      }
+      setAiReviewStatus('loading');
+      void (async () => {
+        try {
+          const review = await reviewFightWithOpenAI({
+            outcome: cat.outcome === 'lost' ? 'lost' : 'landed',
+            fightSeconds: cat.fightSeconds,
+            location: cat.location,
+            samples,
+            baselineAverage: cat.score,
+            baselineSummary: cat.coachingSummary,
+            baselineWhatWentWell: cat.whatWentWell,
+            baselineImprovement: cat.improvement,
+          });
+          if (gen !== aiReviewGenRef.current) return;
+          const enriched: Catch = {
+            ...cat,
+            score: review.score,
+            coachingSummary: review.summary,
+            whatWentWell: review.whatWentWell,
+            improvement: review.improvement,
+            scoreSource: 'openai',
+            scoreRationale: review.scoreRationale,
+            aiModel: review.model,
+          };
+          setLastCatch(enriched);
+          if (enriched.outcome !== 'lost') {
+            animateScore(enriched.score);
+          } else {
+            setScoreDisplay(enriched.score);
+          }
+          setAiReviewStatus('ready');
+        } catch {
+          if (gen !== aiReviewGenRef.current) return;
+          setAiReviewStatus('error');
+        }
+      })();
+    },
+    [animateScore]
+  );
+
+  const presentScore = useCallback(
+    (cat: Catch, samples: number[]) => {
+      setPhase(cat.outcome === 'lost' ? 'lost' : 'score');
+      setLastCatch(cat);
+      setScoreDisplay(0);
+      setForm(EMPTY_FORM);
+      if (cat.outcome !== 'lost') {
+        animateScore(cat.score);
+      } else {
+        setScoreDisplay(cat.score);
+      }
+      requestAiReview(cat, samples);
+    },
+    [animateScore, requestAiReview]
+  );
+
   const startFight = useCallback(async () => {
     setTab('fishing');
+    setSimulating(false);
+    setSimValues([]);
+    pendingOutcomeRef.current = 'landed';
     const ok = await ble.start();
-    if (!ok) return; // ble.error is set; stays on the Ready screen.
-    if (timerRef.current) clearInterval(timerRef.current);
+    if (!ok) return;
+    beginFightTimer();
     setPhase('active');
-    elapsedRef.current = 0;
-    setElapsed(0);
-    timerRef.current = setInterval(() => {
-      elapsedRef.current += 1;
-      setElapsed(elapsedRef.current);
-    }, 1000);
-  }, [ble]);
+  }, [ble, beginFightTimer]);
 
-  const landFish = useCallback(() => {
-    ble.stop();
-  }, [ble]);
+  const startSimulatedFight = useCallback(() => {
+    setTab('fishing');
+    setDetailView(null);
+    setSimulating(true);
+    setSimEnding(false);
+    setSimValues([]);
+    lastValuesRef.current = [];
+    pendingOutcomeRef.current = 'landed';
+    beginFightTimer();
+    setPhase('active');
+    simRef.current.start((sample) => {
+      setSimValues((prev) => {
+        const next = [...prev, sample.value];
+        lastValuesRef.current = next;
+        return next.length > 160 ? next.slice(-160) : next;
+      });
+    });
+  }, [beginFightTimer]);
 
-  // The BLE session resolves the real score asynchronously (only once END arrives) — build
-  // the Catch and move to the score screen when it does.
+  const endFight = useCallback(
+    (outcome: FightOutcome) => {
+      pendingOutcomeRef.current = outcome;
+      if (simulating) {
+        if (simEnding) return;
+        setSimEnding(true);
+        simRef.current.stop();
+        clearFightTimer();
+        const samples = lastValuesRef.current;
+        const cat = finalizeCatchFromSamples(samples, elapsedRef.current, location, outcome);
+        setSimulating(false);
+        setSimEnding(false);
+        presentScore(cat, samples);
+        return;
+      }
+      ble.stop();
+    },
+    [simulating, simEnding, ble, clearFightTimer, location, presentScore]
+  );
+
+  const landFish = useCallback(() => endFight('landed'), [endFight]);
+  const loseFish = useCallback(() => endFight('lost'), [endFight]);
+
   useEffect(() => {
-    if (ble.finalScore == null) return;
-    if (timerRef.current) clearInterval(timerRef.current);
-    const sec = elapsedRef.current;
+    if (ble.finalScore == null || simulating) return;
+    clearFightTimer();
+    const outcome = pendingOutcomeRef.current;
+    const samples = lastValuesRef.current;
+    const analytics = buildSessionAnalytics(samples, outcome);
     const now = new Date();
     const cat: Catch = {
-      id: `c${Date.now()}`, species: '', score: ble.finalScore, fightSeconds: sec,
-      size: '', weight: '', location, date: fmtDate(now), time: fmtTime(now), photo: false,
+      id: `c${Date.now()}`,
+      species: '',
+      score: ble.finalScore,
+      fightSeconds: elapsedRef.current,
+      size: '',
+      weight: '',
+      location,
+      date: fmtDate(now),
+      time: fmtTime(now),
+      photo: false,
+      outcome,
+      sampleCount: analytics.sampleCount,
+      averageSignal: analytics.averageSignal ?? undefined,
+      minimumSignal: analytics.minimumSignal ?? undefined,
+      maximumSignal: analytics.maximumSignal ?? undefined,
+      signalVariability: analytics.signalVariability ?? undefined,
+      relativeTensionSeries: analytics.relativeTensionSeries,
+      coachingSummary: analytics.coachingSummary,
+      coachingEvents: analytics.coachingEvents,
+      whatWentWell: analytics.whatWentWell,
+      improvement: analytics.improvement,
+      scoreSource: 'average',
     };
-    setPhase('score');
-    setLastCatch(cat);
-    setScoreDisplay(0);
-    setForm(EMPTY_FORM);
-    animateScore(ble.finalScore);
+    pendingOutcomeRef.current = 'landed';
+    presentScore(cat, samples);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ble.finalScore]);
 
-  // Any BLE session failure (connect, write, disconnect, invalid data, COUNT mismatch, save
-  // failure) aborts without a score and returns the user to the Ready screen to retry.
   useEffect(() => {
-    if (!ble.error) return;
+    if (!ble.error || simulating) return;
     if (phase !== 'ready') {
-      if (timerRef.current) clearInterval(timerRef.current);
+      clearFightTimer();
       setPhase('ready');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -148,16 +356,38 @@ export function useDragonflyState() {
   const onSpecies = useCallback((value: string) => setFormField('species', value), [setFormField]);
   const onSize = useCallback((value: string) => setFormField('size', value.replace(/[^0-9.]/g, '')), [setFormField]);
   const onWeight = useCallback((value: string) => setFormField('weight', value.replace(/[^0-9.]/g, '')), [setFormField]);
-  const togglePhoto = useCallback(() => setForm((f) => ({ ...f, photo: !f.photo })), []);
+  const onPhotoChange = useCallback((photo: boolean, imageUri?: string) => {
+    setForm((f) => ({ ...f, photo, imageUri: photo ? imageUri : undefined }));
+  }, []);
 
   const saveCatch = useCallback(() => {
     if (editing) {
       const editId = detailView;
-      setCatches((cs) => cs.map((c) => (c.id === editId ? { ...c, ...form } : c)));
+      setCatches((cs) =>
+        cs.map((c) =>
+          c.id === editId
+            ? {
+                ...c,
+                species: form.species,
+                size: form.size,
+                weight: form.weight,
+                photo: form.photo || Boolean(form.imageUri),
+                imageUri: form.imageUri,
+              }
+            : c
+        )
+      );
       setPhase('ready');
       setEditing(false);
     } else if (lastCatch) {
-      const cat: Catch = { ...lastCatch, ...form };
+      const cat: Catch = {
+        ...lastCatch,
+        species: form.species,
+        size: form.size,
+        weight: form.weight,
+        photo: form.photo || Boolean(form.imageUri),
+        imageUri: form.imageUri,
+      };
       setCatches((cs) => [cat, ...cs]);
       setPhase('ready');
       setTab('journey');
@@ -175,7 +405,10 @@ export function useDragonflyState() {
     setDetailView(null);
   }, [lastCatch]);
 
-  const cancelEdit = useCallback(() => setPhase('ready'), []);
+  const cancelEdit = useCallback(() => {
+    setPhase('ready');
+    setEditing(false);
+  }, []);
 
   const openDetail = useCallback((id: string) => {
     setDetailView(id);
@@ -189,7 +422,13 @@ export function useDragonflyState() {
     if (!c) return;
     setPhase('details');
     setEditing(true);
-    setForm({ species: c.species, size: c.size, weight: c.weight, photo: c.photo });
+    setForm({
+      species: c.species,
+      size: c.size,
+      weight: c.weight,
+      photo: c.photo,
+      imageUri: c.imageUri,
+    });
   }, [catches, detailView]);
 
   const deleteCatch = useCallback(() => {
@@ -203,6 +442,20 @@ export function useDragonflyState() {
     setDetailView(null);
   }, []);
 
+  /** Center nav button: open Fishing, or start fight / demo if already there. */
+  const onFishOn = useCallback(() => {
+    if (phase === 'active') return;
+    if (tab === 'fishing' && phase === 'ready') {
+      if (ble.connectionStatus === 'connected') {
+        void startFight();
+      } else {
+        startSimulatedFight();
+      }
+      return;
+    }
+    startFishing();
+  }, [phase, tab, ble.connectionStatus, startFight, startSimulatedFight, startFishing]);
+
   let route: Route;
   if (phase === 'details') route = 'details';
   else if (detailView) route = 'detail';
@@ -212,23 +465,65 @@ export function useDragonflyState() {
 
   return {
     hydrated,
-    tab, phase, location, elapsed, locOpen, lastCatch, scoreDisplay, form,
-    detailView, editing, catches, route, locations: LOCATIONS,
+    tab,
+    phase,
+    location,
+    elapsed,
+    locOpen,
+    lastCatch,
+    scoreDisplay,
+    aiReviewStatus,
+    form,
+    detailView,
+    editing,
+    catches,
+    route,
+    locations,
+    journeySummary,
+    simulating,
     ble: {
       connecting: ble.starting || ble.connectionStatus === 'connecting',
-      awaitingEnd: ble.awaitingEnd,
-      stopping: ble.stopping,
+      awaitingEnd: ble.awaitingEnd || simEnding,
+      stopping: ble.stopping || simEnding,
       error: ble.error,
       connectionStatus: ble.connectionStatus,
       setupConnecting: ble.connecting,
       connectError: ble.connectError,
+      values: liveValues,
+      sampleCount: liveValues.length,
+      expectedCount: simulating ? null : ble.expectedCount,
+      receiving: simulating ? liveValues.length > 0 : ble.receiving,
+      collecting: simulating || ble.collecting,
+      latestSample: signalStats.latest,
+      rollingAverage: signalStats.rollingAverage,
+      trend: signalStats.trend,
     },
     actions: {
-      goHome, goFishing, goJourney, openLoc, closeLoc, setLoc,
-      startFight, landFish, gotoDetails,
-      onSpecies, onSize, onWeight, togglePhoto,
-      saveCatch, skipSave, cancelEdit,
-      openDetail, closeDetail, editCatch, deleteCatch, startFishing,
+      goHome,
+      goFishing,
+      goJourney,
+      openLoc,
+      closeLoc,
+      setLoc,
+      startFight,
+      startSimulatedFight,
+      landFish,
+      loseFish,
+      endFight,
+      onFishOn,
+      gotoDetails,
+      onSpecies,
+      onSize,
+      onWeight,
+      onPhotoChange,
+      saveCatch,
+      skipSave,
+      cancelEdit,
+      openDetail,
+      closeDetail,
+      editCatch,
+      deleteCatch,
+      startFishing,
       connectDevice: ble.connect,
     },
   };

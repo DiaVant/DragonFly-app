@@ -1,109 +1,198 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { colors } from '../theme/colors';
-import { fonts } from '../theme/fonts';
-import { LocationPill } from '../components/PillBadge';
+import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { Screen, PrimaryButton, StatusChip, DeviceStatus } from '../ui';
+import { colors, fonts, radii, touchTarget } from '../theme';
 import { RippleRings } from '../components/RippleRings';
-import { PressScale } from '../components/PressScale';
+import { DragonflyMark } from '../components/DragonflyMark';
+import type { BleConnectionStatus } from '../types';
 
 interface Props {
   location: string;
+  connectionStatus: BleConnectionStatus;
   onOpenLocation: () => void;
   onStartFight: () => void;
+  onSimulateFight?: () => void;
+  onConnect?: () => void;
   connecting?: boolean;
   error?: string | null;
 }
 
-export function FishingReadyScreen({ location, onOpenLocation, onStartFight, connecting, error }: Props) {
+export function FishingReadyScreen({
+  location,
+  connectionStatus,
+  onOpenLocation,
+  onStartFight,
+  onSimulateFight,
+  onConnect,
+  connecting,
+  error,
+}: Props) {
+  const connected = connectionStatus === 'connected';
+  const busy = Boolean(connecting);
+
   return (
-    <View style={styles.container}>
-      <LocationPill location={location} onPress={onOpenLocation} />
-      <View style={styles.center}>
-        <View style={styles.buttonWrap}>
-          {!connecting ? <RippleRings /> : null}
-          <PressScale onPress={onStartFight} style={styles.fishOn} activeScale={0.96} disabled={connecting}>
-            <Text style={styles.fishOnTitle}>{connecting ? 'Connecting' : 'Fish On'}</Text>
-            <Text style={styles.fishOnSubtitle}>{connecting ? 'Talking to DragonFly' : 'Start the fight'}</Text>
-          </PressScale>
-        </View>
-        <View style={styles.copy}>
-          <Text style={styles.heading}>{connecting ? 'One moment' : 'Ready when you are'}</Text>
-          <Text style={styles.body}>
-            {connecting
-              ? 'Connecting to your DragonFly device…'
-              : "Tap Fish On the moment the fish takes — we’ll time the fight for you."}
-          </Text>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+    <Screen scroll contentStyle={styles.screenContent}>
+      <View style={styles.topRow}>
+        <Text style={styles.kicker}>Ready to fight</Text>
+        <StatusChip
+          label={connected ? 'Device ready' : busy ? 'Connecting…' : 'Not connected'}
+          tone={connected ? 'ok' : busy ? 'caution' : error ? 'alert' : 'neutral'}
+        />
+      </View>
+
+      <Pressable
+        style={styles.locationRow}
+        onPress={onOpenLocation}
+        accessibilityRole="button"
+        accessibilityLabel={`Location ${location}. Change location`}
+      >
+        <Text style={styles.locationLabel}>On the water at</Text>
+        <Text style={styles.locationValue} numberOfLines={2}>
+          {location}
+        </Text>
+        <Text style={styles.locationAction}>Change</Text>
+      </Pressable>
+
+      <View style={styles.stage}>
+        <RippleRings />
+        <View style={styles.stageCore}>
+          <DragonflyMark size={72} />
         </View>
       </View>
-    </View>
+
+      <Text style={styles.headline}>Fish On</Text>
+      <Text style={styles.subhead}>
+        The moment the fish takes — press. Coaching follows relative tension, not calibrated pounds.
+      </Text>
+
+      {!connected ? (
+        <View style={styles.deviceWrap}>
+          <DeviceStatus
+            status={connectionStatus}
+            connecting={busy}
+            error={error}
+            onConnect={onConnect}
+            compact
+          />
+        </View>
+      ) : null}
+
+      <View style={styles.ctaBlock}>
+        <PrimaryButton
+          label={busy ? 'Starting…' : connected ? 'Fish On' : 'Connect to Fish On'}
+          onPress={connected ? onStartFight : onConnect ?? onStartFight}
+          loading={busy}
+          disabled={busy || (!connected && !onConnect)}
+          style={styles.fishOn}
+          accessibilityHint="Starts timing the fight and listening to DragonFly tension samples"
+        />
+        {onSimulateFight ? (
+          <PrimaryButton
+            label="Run live simulation"
+            onPress={onSimulateFight}
+            variant="ghost"
+            disabled={busy}
+            accessibilityHint="Demo fight with live relative tension and drag advice — no hardware"
+          />
+        ) : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 14,
-    paddingHorizontal: 22,
-    paddingBottom: 22,
+  screenContent: {
+    paddingBottom: 12,
   },
-  center: {
-    flex: 1,
+  topRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 34,
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    marginBottom: 18,
   },
-  buttonWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fishOn: {
-    width: 188,
-    height: 188,
-    borderRadius: 94,
-    backgroundColor: colors.copper,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    shadowColor: colors.copper,
-    shadowOpacity: 0.5,
-    shadowRadius: 30,
-    shadowOffset: { width: 0, height: 20 },
-    elevation: 10,
-  },
-  fishOnTitle: {
-    fontFamily: fonts.displaySemiBold,
-    fontSize: 31,
-    letterSpacing: 1,
-    color: '#fff',
-  },
-  fishOnSubtitle: {
-    fontSize: 10.5,
-    letterSpacing: 2,
+  kicker: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 12,
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
-    color: 'rgba(255,255,255,.82)',
+    color: colors.slateBlue,
   },
-  copy: {
-    alignItems: 'center',
-    maxWidth: 250,
+  locationRow: {
+    marginBottom: 8,
   },
-  heading: {
-    fontFamily: fonts.displayMedium,
-    fontSize: 16,
+  locationLabel: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  locationValue: {
+    fontFamily: fonts.displaySemiBold,
+    fontSize: 22,
+    letterSpacing: -0.4,
     color: colors.navy,
+    marginTop: 4,
   },
-  body: {
-    fontSize: 12.5,
-    color: colors.textSecondary,
+  locationAction: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 13,
+    color: colors.copper,
     marginTop: 6,
-    lineHeight: 18,
+  },
+  stage: {
+    alignSelf: 'center',
+    width: 260,
+    height: 260,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 8,
+    position: 'relative',
+  },
+  stageCore: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: 'rgba(255,255,255,0.82)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.borderFaint,
+    zIndex: 2,
+  },
+  headline: {
+    fontFamily: fonts.displayBold,
+    fontSize: 36,
+    letterSpacing: -0.8,
+    color: colors.navy,
     textAlign: 'center',
   },
+  subhead: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 8,
+    marginHorizontal: 12,
+    marginBottom: 16,
+  },
+  deviceWrap: { marginBottom: 8 },
+  ctaBlock: {
+    marginTop: 'auto',
+    paddingTop: 8,
+    paddingBottom: 8,
+    gap: 10,
+  },
+  fishOn: {
+    minHeight: Math.max(touchTarget.hero, 58),
+    borderRadius: radii.lg,
+  },
   error: {
-    fontSize: 12.5,
-    color: colors.danger,
-    marginTop: 14,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
     lineHeight: 18,
+    color: colors.danger,
     textAlign: 'center',
   },
 });

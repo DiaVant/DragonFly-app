@@ -1,113 +1,179 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { colors } from '../theme/colors';
-import { fonts } from '../theme/fonts';
-import { PressScale } from '../components/PressScale';
-import type { BleConnectionStatus } from '../types';
+import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { Screen, AppHeader, DeviceStatus, Metric, SectionHeader, PrimaryButton } from '../ui';
+import { colors, fonts } from '../theme';
+import { CatchCard } from '../components/CatchCard';
+import type { BleConnectionStatus, Catch } from '../types';
+import { fmtElapsed } from '../lib/format';
+
+interface JourneySummary {
+  total: number;
+  averageScore: number | null;
+  bestScore: number | null;
+}
 
 interface Props {
   connectionStatus: BleConnectionStatus;
   connecting: boolean;
   error?: string | null;
   onConnect: () => void;
+  onStartFishing: () => void;
+  onOpenJourney: () => void;
+  onOpenCatch: (id: string) => void;
+  onOpenTroubleshooting?: () => void;
+  summary: JourneySummary;
+  recentCatch?: Catch | null;
+  greeting?: string;
 }
 
-const STATUS_LABEL: Record<BleConnectionStatus, string> = {
-  disconnected: 'Not connected',
-  connecting: 'Connecting…',
-  connected: 'Connected to DragonFly',
-};
+export function HomeScreen({
+  connectionStatus,
+  connecting,
+  error,
+  onConnect,
+  onStartFishing,
+  onOpenJourney,
+  onOpenCatch,
+  onOpenTroubleshooting,
+  summary,
+  recentCatch,
+  greeting = 'Coach the fight. Keep the memories.',
+}: Props) {
+  const connected = connectionStatus === 'connected';
 
-const STATUS_COLOR: Record<BleConnectionStatus, string> = {
-  disconnected: colors.missing,
-  connecting: colors.copper,
-  connected: colors.sage,
-};
-
-export function HomeScreen({ connectionStatus, connecting, error, onConnect }: Props) {
-  const isConnected = connectionStatus === 'connected';
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Home</Text>
+    <Screen scroll>
+      <AppHeader title="DragonFly 1.0" subtitle={greeting} hero showMark />
 
-      <View style={styles.setupCard}>
-        <Text style={styles.setupHeading}>DragonFly device</Text>
-        <View style={styles.statusRow}>
-          <View style={[styles.dot, { backgroundColor: STATUS_COLOR[connectionStatus] }]} />
-          <Text style={styles.statusLabel}>{STATUS_LABEL[connectionStatus]}</Text>
+      <DeviceStatus
+        status={connectionStatus}
+        connecting={connecting}
+        error={error}
+        onConnect={onConnect}
+        onStartFishing={connected ? onStartFishing : undefined}
+      />
+
+      <View style={styles.journeyStrip}>
+        <SectionHeader
+          title="Journey"
+          subtitle={summary.total ? `${summary.total} catches on the water` : 'Your first catch starts here'}
+          action={
+            <Pressable onPress={onOpenJourney} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open Journey">
+              <Text style={styles.link}>Open</Text>
+            </Pressable>
+          }
+        />
+        <View style={styles.metrics}>
+          <Metric label="Catches" value={String(summary.total)} mono />
+          <Metric
+            label="Average"
+            value={summary.averageScore != null ? String(summary.averageScore) : '—'}
+            emphasize={summary.averageScore != null}
+          />
+          <Metric
+            label="Best"
+            value={summary.bestScore != null ? String(summary.bestScore) : '—'}
+            emphasize={summary.bestScore != null}
+          />
         </View>
-        {!isConnected ? (
-          <PressScale onPress={onConnect} style={styles.connectButton} activeScale={0.98} disabled={connecting}>
-            <Text style={styles.connectLabel}>{connecting ? 'Connecting…' : 'Connect to DragonFly'}</Text>
-          </PressScale>
-        ) : null}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
-    </View>
+
+      {recentCatch ? (
+        <View style={styles.section}>
+          <SectionHeader title="Last catch" />
+          <CatchCard item={recentCatch} onPress={() => onOpenCatch(recentCatch.id)} compact />
+          <Text style={styles.footnote}>
+            {fmtElapsed(recentCatch.fightSeconds)} · {recentCatch.location || 'Location not added'}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.emptyPrompt}>
+          <Text style={styles.emptyTitle}>No catches yet</Text>
+          <Text style={styles.emptyBody}>
+            When you land a fish, DragonFly saves the fight score and coaching notes to your Journey.
+          </Text>
+          <PrimaryButton
+            label={connected ? 'Start Fishing' : 'Connect DragonFly'}
+            onPress={connected ? onStartFishing : onConnect}
+            style={styles.emptyCta}
+          />
+        </View>
+      )}
+
+      <Pressable
+        onPress={onOpenTroubleshooting}
+        style={styles.trouble}
+        accessibilityRole="button"
+        accessibilityLabel="Device troubleshooting"
+      >
+        <Text style={styles.troubleTitle}>Need help connecting?</Text>
+        <Text style={styles.troubleBody}>Power on · stay nearby · allow Bluetooth · then Connect</Text>
+      </Pressable>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 40,
-    paddingHorizontal: 28,
+  section: {
+    marginTop: 28,
   },
-  title: {
-    fontFamily: fonts.displaySemiBold,
-    fontSize: 34,
-    letterSpacing: 2,
-    color: colors.navy,
+  journeyStrip: {
+    marginTop: 28,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderFaint,
   },
-  setupCard: {
-    width: '100%',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 18,
-    padding: 18,
-  },
-  setupHeading: {
-    fontFamily: fonts.displaySemiBold,
-    fontSize: 14,
-    color: colors.navy,
-    marginBottom: 12,
-  },
-  statusRow: {
+  metrics: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 8,
+  },
+  link: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 14,
+    color: colors.copper,
+  },
+  footnote: {
+    fontFamily: fonts.monoRegular,
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 10,
+  },
+  emptyPrompt: {
+    marginTop: 28,
+    paddingVertical: 8,
+  },
+  emptyTitle: {
+    fontFamily: fonts.displaySemiBold,
+    fontSize: 20,
+    color: colors.navy,
+    letterSpacing: -0.3,
+  },
+  emptyBody: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.textSecondary,
+    marginTop: 8,
     marginBottom: 16,
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  emptyCta: {
+    maxWidth: 280,
   },
-  statusLabel: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontFamily: fonts.bodyMedium,
+  trouble: {
+    marginTop: 32,
+    marginBottom: 28,
+    paddingVertical: 4,
   },
-  connectButton: {
-    height: 50,
-    borderRadius: 14,
-    backgroundColor: colors.copper,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  connectLabel: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
+  troubleTitle: {
     fontFamily: fonts.bodySemiBold,
+    fontSize: 13,
+    color: colors.navy,
+    marginBottom: 4,
   },
-  error: {
-    fontSize: 12.5,
-    color: colors.danger,
-    marginTop: 14,
-    lineHeight: 18,
+  troubleBody: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textMuted,
   },
 });

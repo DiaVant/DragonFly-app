@@ -1,61 +1,66 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors } from '../theme/colors';
-import { fonts } from '../theme/fonts';
+import { colors, fonts, radii, shadows } from '../theme';
 import { fmtElapsed } from '../lib/format';
 import type { Catch } from '../types';
-import { NoPhotoFill, PhotoFill } from './PhotoPlaceholder';
+import { CatchPhoto } from './CatchPhoto';
 
 interface Props {
   item: Catch;
   onPress: () => void;
+  compact?: boolean;
 }
 
-export function CatchCard({ item, onPress }: Props) {
+/**
+ * Journey catch row: photo thumbnail + readable species/stats.
+ */
+export function CatchCard({ item, onPress, compact }: Props) {
   return (
-    <Pressable style={styles.card} onPress={onPress}>
-      <View style={styles.photoArea}>
-        {item.photo ? <PhotoFill /> : <NoPhotoFill label="Photo not added" />}
-        <View style={styles.scoreBadge}>
-          <Text style={styles.scoreValue}>{item.score}</Text>
-          <Text style={styles.scoreLabel}>Score</Text>
-        </View>
+    <Pressable
+      style={[styles.card, compact && styles.compact]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.outcome === 'lost' ? "Didn't land" : 'Catch'}, ${item.species || 'unnamed'}, score ${item.score}`}
+    >
+      <View style={[styles.thumb, compact && styles.thumbCompact]}>
+        <CatchPhoto item={item} />
       </View>
+
       <View style={styles.body}>
-        {item.species ? (
-          <Text style={styles.species}>{item.species}</Text>
-        ) : (
-          <Text style={styles.speciesMissing}>Species not added</Text>
-        )}
-        <View style={styles.statsRow}>
-          <View>
-            <Text style={styles.statLabel}>Fight</Text>
-            <Text style={styles.statValueMono}>{fmtElapsed(item.fightSeconds)}</Text>
-          </View>
-          <View>
-            <Text style={styles.statLabel}>Size</Text>
-            {item.size ? (
-              <Text style={styles.statValueMono}>{item.size} in</Text>
+        <View style={styles.titleRow}>
+          <View style={styles.titleText}>
+            {item.outcome === 'lost' ? (
+              <Text style={styles.lostTag}>Didn&apos;t land</Text>
+            ) : null}
+            {item.species ? (
+              <Text style={styles.species} numberOfLines={2}>
+                {item.species}
+              </Text>
             ) : (
-              <Text style={styles.statMissing}>Not added</Text>
+              <Text style={styles.speciesMissing} numberOfLines={2}>
+                {item.outcome === 'lost' ? 'Lost fish — review saved' : 'Species not added'}
+              </Text>
             )}
           </View>
-          <View>
-            <Text style={styles.statLabel}>Weight</Text>
-            {item.weight ? (
-              <Text style={styles.statValueMono}>{item.weight} lb</Text>
-            ) : (
-              <Text style={styles.statMissing}>Not added</Text>
-            )}
-          </View>
+          <Text style={[styles.scoreValue, item.outcome === 'lost' && styles.scoreLost]}>{item.score}</Text>
         </View>
+
+        <View style={styles.statsRow}>
+          <Text style={styles.meta}>{fmtElapsed(item.fightSeconds)}</Text>
+          <Text style={styles.metaDot}>·</Text>
+          <Text style={[styles.meta, !item.size && styles.missing]} numberOfLines={1}>
+            {item.size ? `${item.size}"` : 'Size —'}
+          </Text>
+          <Text style={styles.metaDot}>·</Text>
+          <Text style={[styles.meta, !item.weight && styles.missing]} numberOfLines={1}>
+            {item.weight ? `${item.weight} lb` : 'Wt —'}
+          </Text>
+        </View>
+
         <View style={styles.footerRow}>
-          <View style={styles.dot} />
-          {item.location ? (
-            <Text style={styles.footerLocation}>{item.location}</Text>
-          ) : (
-            <Text style={styles.footerLocationMissing}>Location not added</Text>
-          )}
+          <Text style={[styles.footerLocation, !item.location && styles.missing]} numberOfLines={1}>
+            {item.location || 'Location not added'}
+          </Text>
           <Text style={styles.footerDate}>{item.date}</Text>
         </View>
       </View>
@@ -65,105 +70,113 @@ export function CatchCard({ item, onPress }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    backgroundColor: 'rgba(255,255,255,0.72)',
+    borderRadius: radii.lg,
+    overflow: 'hidden',
+    minHeight: 108,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 20,
+    borderColor: colors.borderFaint,
+    ...shadows.card,
+  },
+  compact: {
+    minHeight: 96,
+  },
+  thumb: {
+    width: 100,
+    minHeight: 108,
+    alignSelf: 'stretch',
+    backgroundColor: colors.backgroundAlt,
     overflow: 'hidden',
   },
-  photoArea: {
-    height: 150,
-    position: 'relative',
+  thumbCompact: {
+    width: 88,
+    minHeight: 96,
   },
-  scoreBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: 'rgba(255,255,255,.94)',
-    borderRadius: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 11,
-    alignItems: 'center',
+  body: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    gap: 6,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  titleText: {
+    flex: 1,
+    minWidth: 0,
   },
   scoreValue: {
     fontFamily: fonts.displayBold,
-    fontSize: 20,
+    fontSize: 26,
+    letterSpacing: -0.6,
     color: colors.copper,
-    lineHeight: 22,
+    lineHeight: 28,
   },
-  scoreLabel: {
-    fontSize: 8,
-    letterSpacing: 1,
+  scoreLost: {
+    color: colors.slateBlue,
+  },
+  lostTag: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 10,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
-    color: colors.textSecondary,
-    marginTop: 3,
-  },
-  body: {
-    padding: 16,
-    paddingTop: 14,
+    color: colors.caution,
+    marginBottom: 2,
   },
   species: {
     fontFamily: fonts.displaySemiBold,
-    fontSize: 18,
+    fontSize: 17,
+    letterSpacing: -0.2,
     color: colors.navy,
   },
   speciesMissing: {
-    fontFamily: fonts.displayMedium,
-    fontSize: 16,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 14,
     color: colors.missing,
     fontStyle: 'italic',
   },
   statsRow: {
     flexDirection: 'row',
-    gap: 20,
-    marginTop: 12,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 4,
   },
-  statLabel: {
-    fontSize: 9,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color: colors.missing,
-  },
-  statValueMono: {
+  meta: {
     fontFamily: fonts.monoRegular,
-    fontSize: 13,
-    color: colors.navy,
-    marginTop: 4,
-  },
-  statMissing: {
     fontSize: 12,
+    color: colors.textSecondary,
+  },
+  metaDot: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  missing: {
     color: colors.missing,
-    marginTop: 5,
     fontStyle: 'italic',
   },
   footerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 14,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderFaint,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.sage,
+    marginTop: 2,
   },
   footerLocation: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 12,
-    color: colors.textSecondary,
-  },
-  footerLocationMissing: {
-    fontSize: 12,
-    color: colors.missing,
-    fontStyle: 'italic',
+    color: colors.textMuted,
+    fontFamily: fonts.bodyRegular,
   },
   footerDate: {
-    marginLeft: 'auto',
     fontFamily: fonts.monoRegular,
     fontSize: 11,
-    color: colors.missing,
+    color: colors.textMuted,
   },
 });

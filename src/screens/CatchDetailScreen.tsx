@@ -1,9 +1,8 @@
-import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors } from '../theme/colors';
-import { fonts } from '../theme/fonts';
-import { NoPhotoFill, PhotoFill } from '../components/PhotoPlaceholder';
-import { PressScale } from '../components/PressScale';
+import React, { useState } from 'react';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
+import { Screen, PrimaryButton, SecondaryButton, Card, Metric, TensionChart, IconButton } from '../ui';
+import { colors, fonts, radii } from '../theme';
+import { CatchPhoto } from '../components/CatchPhoto';
 import { fmtElapsed } from '../lib/format';
 import type { Catch } from '../types';
 
@@ -15,228 +14,219 @@ interface Props {
 }
 
 export function CatchDetailScreen({ item, onClose, onEdit, onDelete }: Props) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const hasPhoto = Boolean(item.imageUri) || item.photo;
+  const series = item.relativeTensionSeries ?? [];
+
+  const requestDelete = () => {
+    if (Platform.OS === 'web') {
+      // eslint-disable-next-line no-alert
+      if (window.confirm('Delete this catch? This cannot be undone.')) onDelete();
+      return;
+    }
+    Alert.alert('Delete catch?', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: onDelete },
+    ]);
+  };
+
   return (
-    <ScrollView style={styles.container}>
+    <Screen scroll padded={false} contentStyle={styles.screenContent}>
       <View style={styles.hero}>
-        {item.photo ? <PhotoFill /> : <NoPhotoFill label="Photo not added" showMark markSize={46} />}
-        <Pressable style={styles.backButton} onPress={onClose}>
-          <Text style={styles.backIcon}>&#8249;</Text>
-        </Pressable>
-        <Pressable style={styles.replaceButton} onPress={onEdit}>
-          <Text style={styles.replaceLabel}>Replace photo</Text>
-        </Pressable>
+        <CatchPhoto item={item} emptyLabel="Photo not added" showMark markSize={46} />
+        <IconButton onPress={onClose} accessibilityLabel="Close" style={styles.back}>
+          <Text style={styles.backIcon}>‹</Text>
+        </IconButton>
       </View>
+
       <View style={styles.body}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
+            {item.outcome === 'lost' ? <Text style={styles.lostTag}>Didn&apos;t land</Text> : null}
             {item.species ? (
               <Text style={styles.species}>{item.species}</Text>
             ) : (
-              <Text style={styles.speciesMissing}>Species not added</Text>
+              <Text style={styles.speciesMissing}>
+                {item.outcome === 'lost' ? 'Lost fish — coaching saved' : 'Species not added'}
+              </Text>
             )}
-            <Text style={styles.dateTime}>{item.date}{item.time ? ` · ${item.time}` : ''}</Text>
+            <Text style={styles.dateTime}>
+              {item.date}
+              {item.time ? ` · ${item.time}` : ''}
+            </Text>
           </View>
           <View style={styles.scoreBadge}>
-            <Text style={styles.scoreValue}>{item.score}</Text>
-            <Text style={styles.scoreLabel}>Score</Text>
+            <Text style={[styles.scoreValue, item.outcome === 'lost' && styles.scoreLost]}>{item.score}</Text>
+            <Text style={styles.scoreLabel}>
+              {item.scoreSource === 'openai' ? 'AI score' : item.outcome === 'lost' ? 'Index' : 'Score'}
+            </Text>
           </View>
         </View>
 
         <View style={styles.grid}>
-          <View style={styles.infoCard}>
-            <Text style={styles.infoLabel}>Fight duration</Text>
-            <Text style={styles.infoValueMono}>{fmtElapsed(item.fightSeconds)}</Text>
-          </View>
-          <Pressable style={styles.infoCard} onPress={onEdit}>
-            <Text style={styles.infoLabel}>Location</Text>
-            {item.location ? (
-              <Text style={styles.infoValueBody}>{item.location}</Text>
-            ) : (
-              <Text style={styles.infoAdd}>+ Add location</Text>
-            )}
-          </Pressable>
-          <Pressable style={styles.infoCard} onPress={onEdit}>
-            <Text style={styles.infoLabel}>Size</Text>
-            {item.size ? (
-              <Text style={styles.infoValueMono}>{item.size} in</Text>
-            ) : (
-              <Text style={styles.infoAdd}>+ Add size</Text>
-            )}
-          </Pressable>
-          <Pressable style={styles.infoCard} onPress={onEdit}>
-            <Text style={styles.infoLabel}>Weight</Text>
-            {item.weight ? (
-              <Text style={styles.infoValueMono}>{item.weight} lb</Text>
-            ) : (
-              <Text style={styles.infoAdd}>+ Add weight</Text>
-            )}
-          </Pressable>
+          <Card style={styles.infoCard}>
+            <Metric label="Fight duration" value={fmtElapsed(item.fightSeconds)} mono />
+          </Card>
+          <Card style={styles.infoCard}>
+            <Metric label="Location" value={item.location || 'Not added'} />
+          </Card>
+          <Card style={styles.infoCard}>
+            <Metric label="Size" value={item.size ? `${item.size} in` : 'Not added'} mono />
+          </Card>
+          <Card style={styles.infoCard}>
+            <Metric label="Weight" value={item.weight ? `${item.weight} lb` : 'Not added'} mono />
+          </Card>
         </View>
 
-        <PressScale onPress={onEdit} style={styles.editButton} activeScale={0.98}>
-          <Text style={styles.editLabel}>Edit details</Text>
-        </PressScale>
-        <Pressable onPress={onDelete} style={styles.deleteButton}>
-          <Text style={styles.deleteLabel}>Delete catch</Text>
-        </Pressable>
+        {series.length > 1 || item.sampleCount ? (
+          <View style={styles.session}>
+            <Text style={styles.sessionTitle}>Session tension</Text>
+            <Text style={styles.sessionMeta}>
+              {item.sampleCount ?? series.length} samples
+              {item.averageSignal != null ? ` · avg index ${item.averageSignal}` : ''}
+            </Text>
+            {series.length > 1 ? <TensionChart samples={series} /> : null}
+            {item.coachingSummary ? <Text style={styles.summary}>{item.coachingSummary}</Text> : null}
+          </View>
+        ) : null}
+
+        {!hasPhoto ? (
+          <Text style={styles.missingNote}>No photo attached — you can add one while editing.</Text>
+        ) : null}
+
+        <PrimaryButton label="Edit details" onPress={onEdit} variant="navy" style={styles.edit} />
+        {confirmDelete ? (
+          <View style={styles.confirm}>
+            <Text style={styles.confirmText}>Delete this catch permanently?</Text>
+            <PrimaryButton label="Yes, delete" onPress={onDelete} variant="danger" />
+            <SecondaryButton label="Cancel" onPress={() => setConfirmDelete(false)} />
+          </View>
+        ) : (
+          <SecondaryButton
+            label="Delete catch"
+            onPress={() => (Platform.OS === 'web' ? requestDelete() : setConfirmDelete(true))}
+            tone="danger"
+          />
+        )}
       </View>
-    </ScrollView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  screenContent: { maxWidth: 480 },
   hero: {
-    height: 262,
+    height: 280,
     position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: colors.navy,
   },
-  backButton: {
-    position: 'absolute',
-    top: 14,
-    left: 14,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,.94)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backIcon: {
-    color: colors.navy,
-    fontSize: 22,
-  },
-  replaceButton: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
-    backgroundColor: 'rgba(255,255,255,.94)',
-    borderRadius: 100,
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-  },
-  replaceLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.navy,
-    fontFamily: fonts.bodySemiBold,
-  },
-  body: {
-    paddingTop: 20,
-    paddingHorizontal: 22,
-    paddingBottom: 28,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 14,
-  },
-  headerLeft: {
-    flexShrink: 1,
-  },
+  back: { position: 'absolute', top: 14, left: 14 },
+  backIcon: { fontSize: 28, color: colors.textOnDark, marginTop: -2 },
+  body: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 28 },
+  headerRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  headerLeft: { flex: 1, minWidth: 0 },
   species: {
     fontFamily: fonts.displaySemiBold,
-    fontSize: 24,
+    fontSize: 28,
+    letterSpacing: -0.5,
     color: colors.navy,
   },
+  lostTag: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: colors.caution,
+    marginBottom: 4,
+  },
   speciesMissing: {
-    fontFamily: fonts.displayMedium,
-    fontSize: 20,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 18,
     color: colors.missing,
     fontStyle: 'italic',
   },
   dateTime: {
     fontFamily: fonts.monoRegular,
     fontSize: 12,
-    color: colors.missing,
+    color: colors.textMuted,
     marginTop: 6,
   },
   scoreBadge: {
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingVertical: 9,
-    paddingHorizontal: 15,
-    alignItems: 'center',
+    alignItems: 'flex-end',
+    paddingTop: 2,
   },
   scoreValue: {
     fontFamily: fonts.displayBold,
-    fontSize: 26,
+    fontSize: 36,
+    letterSpacing: -1,
     color: colors.copper,
-    lineHeight: 28,
+    lineHeight: 38,
+  },
+  scoreLost: {
+    color: colors.slateBlue,
   },
   scoreLabel: {
-    fontSize: 8,
-    letterSpacing: 1.3,
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 10,
+    letterSpacing: 0.6,
     textTransform: 'uppercase',
-    color: colors.textSecondary,
-    marginTop: 3,
+    color: colors.textMuted,
+    marginTop: 2,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 0,
     marginTop: 22,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderFaint,
   },
   infoCard: {
-    width: '47.5%',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    padding: 13,
+    width: '50%',
+    flexGrow: 1,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    borderRadius: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderFaint,
+    shadowOpacity: 0,
+    elevation: 0,
+    boxShadow: 'none',
   },
-  infoLabel: {
-    fontSize: 9,
-    letterSpacing: 1.3,
-    textTransform: 'uppercase',
-    color: colors.missing,
+  session: { marginTop: 24 },
+  sessionTitle: {
+    fontFamily: fonts.displaySemiBold,
+    fontSize: 18,
+    letterSpacing: -0.2,
+    color: colors.navy,
+    marginBottom: 4,
   },
-  infoValueMono: {
+  sessionMeta: {
     fontFamily: fonts.monoRegular,
-    fontSize: 16,
-    color: colors.navy,
-    marginTop: 5,
+    fontSize: 12,
+    color: colors.textMuted,
+    marginBottom: 8,
   },
-  infoValueBody: {
+  summary: {
+    marginTop: 10,
+    fontFamily: fonts.bodyRegular,
     fontSize: 14,
-    color: colors.navy,
+    lineHeight: 20,
+    color: colors.textSecondary,
+  },
+  missingNote: {
+    marginTop: 14,
+    fontFamily: fonts.bodyRegular,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  edit: { marginTop: 20, marginBottom: 8 },
+  confirm: { gap: 8, marginTop: 8 },
+  confirmText: {
     fontFamily: fonts.bodyMedium,
-    marginTop: 6,
-  },
-  infoAdd: {
-    fontSize: 13,
-    color: colors.copper,
-    fontWeight: '600',
-    marginTop: 6,
-    fontFamily: fonts.bodySemiBold,
-  },
-  editButton: {
-    width: '100%',
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: colors.navy,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 22,
-  },
-  editLabel: {
-    color: '#fff',
-    fontWeight: '600',
     fontSize: 14,
-    fontFamily: fonts.bodySemiBold,
-  },
-  deleteButton: {
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  deleteLabel: {
     color: colors.danger,
-    fontSize: 13,
-    fontWeight: '600',
-    fontFamily: fonts.bodySemiBold,
+    textAlign: 'center',
   },
 });

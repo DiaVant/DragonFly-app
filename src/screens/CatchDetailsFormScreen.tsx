@@ -1,9 +1,19 @@
-import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { colors } from '../theme/colors';
-import { fonts } from '../theme/fonts';
+import React, { useState, type ReactNode } from 'react';
+import {
+  Alert,
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Screen, PrimaryButton, SecondaryButton, Card } from '../ui';
+import { colors, fonts, radii, touchTarget } from '../theme';
 import { NoPhotoFill } from '../components/PhotoPlaceholder';
-import { PressScale } from '../components/PressScale';
+import { resolveCatchImageSource } from '../lib/defaultPhotos';
 import { fmtElapsed } from '../lib/format';
 import type { CatchForm } from '../types';
 
@@ -13,10 +23,11 @@ interface Props {
   onSpecies: (v: string) => void;
   onSize: (v: string) => void;
   onWeight: (v: string) => void;
-  onTogglePhoto: () => void;
+  onPhotoChange: (photo: boolean, imageUri?: string) => void;
   autoScore: number;
   autoFightSeconds: number;
   autoLocation: string;
+  onChangeLocation?: () => void;
   autoDateTime: string;
   saveLabel: string;
   secondaryLabel: string;
@@ -25,199 +36,267 @@ interface Props {
 }
 
 export function CatchDetailsFormScreen({
-  title, form, onSpecies, onSize, onWeight, onTogglePhoto,
-  autoScore, autoFightSeconds, autoLocation, autoDateTime,
-  saveLabel, secondaryLabel, onSave, onSecondary,
+  title,
+  form,
+  onSpecies,
+  onSize,
+  onWeight,
+  onPhotoChange,
+  autoScore,
+  autoFightSeconds,
+  autoLocation,
+  onChangeLocation,
+  autoDateTime,
+  saveLabel,
+  secondaryLabel,
+  onSave,
+  onSecondary,
 }: Props) {
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>Every field is optional — add what you like.</Text>
+  const [saving, setSaving] = useState(false);
+  const dirty =
+    Boolean(form.species.trim()) ||
+    Boolean(form.size.trim()) ||
+    Boolean(form.weight.trim()) ||
+    Boolean(form.imageUri) ||
+    form.photo;
 
-      <Pressable style={styles.photoBox} onPress={onTogglePhoto}>
-        {form.photo ? (
+  const pickImage = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Photo access needed', 'Allow photo library access to attach a catch photo.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets[0]?.uri) {
+        onPhotoChange(true, result.assets[0].uri);
+      }
+    } catch {
+      // Polished fallback: keep boolean photo toggle if picker fails.
+      onPhotoChange(!form.photo, undefined);
+    }
+  };
+
+  const clearPhoto = () => onPhotoChange(false, undefined);
+
+  const handleSecondary = () => {
+    if (!dirty) {
+      onSecondary();
+      return;
+    }
+    const message = 'Discard the details you entered?';
+    if (Platform.OS === 'web') {
+      // eslint-disable-next-line no-alert
+      if (window.confirm(message)) onSecondary();
+      return;
+    }
+    Alert.alert('Discard changes?', message, [
+      { text: 'Keep editing', style: 'cancel' },
+      { text: 'Discard', style: 'destructive', onPress: onSecondary },
+    ]);
+  };
+
+  const handleSave = () => {
+    setSaving(true);
+    onSave();
+    setSaving(false);
+  };
+
+  const photoSource = resolveCatchImageSource(form.imageUri);
+
+  return (
+    <Screen scroll>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.subtitle}>Every field is optional — add what you want to remember.</Text>
+
+      <Pressable
+        style={styles.photoBox}
+        onPress={form.imageUri || form.photo ? clearPhoto : pickImage}
+        accessibilityRole="button"
+        accessibilityLabel={form.imageUri || form.photo ? 'Remove photo' : 'Add photo'}
+      >
+        {photoSource ? (
+          <Image source={photoSource} style={styles.photo} resizeMode="cover" accessibilityLabel="Catch photo" />
+        ) : form.photo ? (
           <View style={styles.photoAdded}>
-            <View style={styles.photoAddedRow}>
-              <View style={styles.checkDot}>
-                <Text style={styles.checkMark}>&#10003;</Text>
-              </View>
-              <Text style={styles.photoAddedLabel}>Photo added &middot; tap to remove</Text>
-            </View>
+            <Text style={styles.photoAddedLabel}>Photo marked · tap to remove</Text>
           </View>
         ) : (
-          <NoPhotoFill title="Drop a photo of your catch" label="Tap to add · optional" showMark markSize={40} />
+          <NoPhotoFill title="Add a photo of your catch" label="Optional · tap to choose" showMark markSize={40} />
         )}
       </Pressable>
 
-      <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Species</Text>
+      <Text style={styles.group}>About the fish</Text>
+      <Field label="Species (optional)">
         <TextInput
           style={styles.input}
           placeholder="e.g. Rainbow Trout"
           placeholderTextColor={colors.missing}
           value={form.species}
           onChangeText={onSpecies}
+          accessibilityLabel="Species"
         />
-      </View>
+      </Field>
 
       <View style={styles.row}>
         <View style={styles.rowField}>
-          <Text style={styles.fieldLabel}>Size</Text>
-          <View style={styles.inputWrap}>
-            <TextInput
-              style={[styles.input, styles.inputWithUnit]}
-              placeholder="0"
-              placeholderTextColor={colors.missing}
-              keyboardType="decimal-pad"
-              value={form.size}
-              onChangeText={onSize}
-            />
-            <Text style={styles.unit}>in</Text>
-          </View>
+          <Field label="Size (optional)">
+            <View style={styles.inputWrap}>
+              <TextInput
+                style={[styles.input, styles.inputWithUnit]}
+                placeholder="0"
+                placeholderTextColor={colors.missing}
+                keyboardType="decimal-pad"
+                value={form.size}
+                onChangeText={onSize}
+                accessibilityLabel="Size in inches"
+              />
+              <Text style={styles.unit}>in</Text>
+            </View>
+          </Field>
         </View>
         <View style={styles.rowField}>
-          <Text style={styles.fieldLabel}>Weight</Text>
-          <View style={styles.inputWrap}>
-            <TextInput
-              style={[styles.input, styles.inputWithUnit]}
-              placeholder="0"
-              placeholderTextColor={colors.missing}
-              keyboardType="decimal-pad"
-              value={form.weight}
-              onChangeText={onWeight}
-            />
-            <Text style={styles.unit}>lb</Text>
-          </View>
+          <Field label="Weight (optional)">
+            <View style={styles.inputWrap}>
+              <TextInput
+                style={[styles.input, styles.inputWithUnit]}
+                placeholder="0"
+                placeholderTextColor={colors.missing}
+                keyboardType="decimal-pad"
+                value={form.weight}
+                onChangeText={onWeight}
+                accessibilityLabel="Weight in pounds"
+              />
+              <Text style={styles.unit}>lb</Text>
+            </View>
+          </Field>
         </View>
       </View>
 
-      <View style={styles.autoPanel}>
-        <View style={styles.autoHeader}>
-          <View style={styles.dot} />
-          <Text style={styles.autoHeaderLabel}>Automatically recorded</Text>
-        </View>
-        <View style={styles.autoRow}>
-          <Text style={styles.autoRowLabel}>Catch Score</Text>
-          <Text style={styles.autoScore}>{autoScore}</Text>
-        </View>
-        <View style={styles.autoRow}>
-          <Text style={styles.autoRowLabel}>Fight duration</Text>
-          <Text style={styles.autoMono}>{fmtElapsed(autoFightSeconds)}</Text>
-        </View>
-        <View style={styles.autoRow}>
-          <Text style={styles.autoRowLabel}>Location</Text>
-          <Text style={styles.autoBody}>{autoLocation}</Text>
-        </View>
-        <View style={[styles.autoRow, { borderBottomWidth: 0 }]}>
-          <Text style={styles.autoRowLabel}>Date &amp; time</Text>
-          <Text style={styles.autoMonoSmall}>{autoDateTime}</Text>
-        </View>
-      </View>
+      <Text style={styles.group}>Recorded by DragonFly</Text>
+      <Card>
+        <AutoRow label="Catch score" value={String(autoScore)} emphasize />
+        <AutoRow label="Fight duration" value={fmtElapsed(autoFightSeconds)} mono />
+        <Pressable onPress={onChangeLocation} disabled={!onChangeLocation}>
+          <AutoRow label="Location" value={autoLocation} action={onChangeLocation ? 'Change' : undefined} />
+        </Pressable>
+        <AutoRow label="Date & time" value={autoDateTime} mono last />
+      </Card>
 
-      <PressScale onPress={onSave} style={styles.saveButton} activeScale={0.98}>
-        <Text style={styles.saveLabel}>{saveLabel}</Text>
-      </PressScale>
-      <Pressable onPress={onSecondary} style={styles.secondaryButton}>
-        <Text style={styles.secondaryLabel}>{secondaryLabel}</Text>
-      </Pressable>
-    </ScrollView>
+      <PrimaryButton label={saving ? 'Saving…' : saveLabel} onPress={handleSave} loading={saving} style={styles.save} />
+      <SecondaryButton label={secondaryLabel} onPress={handleSecondary} />
+    </Screen>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      {children}
+    </View>
+  );
+}
+
+function AutoRow({
+  label,
+  value,
+  mono,
+  emphasize,
+  action,
+  last,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  emphasize?: boolean;
+  action?: string;
+  last?: boolean;
+}) {
+  return (
+    <View style={[styles.autoRow, last && styles.autoRowLast]}>
+      <Text style={styles.autoLabel}>{label}</Text>
+      <View style={styles.autoRight}>
+        <Text
+          style={[styles.autoValue, mono && styles.mono, emphasize && styles.emphasize]}
+          numberOfLines={2}
+        >
+          {value}
+        </Text>
+        {action ? <Text style={styles.action}>{action}</Text> : null}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    paddingTop: 18,
-    paddingHorizontal: 22,
-    paddingBottom: 28,
-  },
   title: {
     fontFamily: fonts.displaySemiBold,
-    fontSize: 22,
+    fontSize: 24,
     color: colors.navy,
   },
   subtitle: {
-    fontSize: 12.5,
+    fontFamily: fonts.bodyRegular,
+    fontSize: 14,
     color: colors.textSecondary,
-    marginTop: 3,
-    marginBottom: 18,
+    marginTop: 4,
+    marginBottom: 16,
   },
   photoBox: {
-    height: 172,
-    borderRadius: 18,
+    height: 180,
+    borderRadius: radii.lg,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.border,
     marginBottom: 20,
+    backgroundColor: colors.backgroundAlt,
   },
+  photo: { width: '100%', height: '100%' },
   photoAdded: {
     flex: 1,
     backgroundColor: colors.navy,
+    alignItems: 'center',
     justifyContent: 'flex-end',
     padding: 14,
   },
-  photoAddedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-  },
-  checkDot: {
-    width: 15,
-    height: 15,
-    borderRadius: 7.5,
-    backgroundColor: colors.sage,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkMark: {
-    color: colors.navy,
-    fontSize: 9,
-  },
   photoAddedLabel: {
-    fontFamily: fonts.monoRegular,
-    fontSize: 10,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color: '#E8ECEB',
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    color: colors.textOnDark,
   },
-  field: {
-    marginBottom: 16,
+  group: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 13,
+    color: colors.textMuted,
+    marginBottom: 10,
+    marginTop: 4,
   },
+  field: { marginBottom: 14 },
   fieldLabel: {
-    fontSize: 11,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
     color: colors.textSecondary,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   input: {
-    height: 48,
+    minHeight: touchTarget.comfortable,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
+    borderRadius: radii.sm,
     paddingHorizontal: 14,
     fontSize: 15,
     color: colors.navy,
     backgroundColor: colors.surface,
     fontFamily: fonts.bodyRegular,
   },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 22,
-  },
-  rowField: {
-    flex: 1,
-  },
-  inputWrap: {
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  inputWithUnit: {
-    paddingRight: 40,
-  },
+  row: { flexDirection: 'row', gap: 12, marginBottom: 8 },
+  rowField: { flex: 1 },
+  inputWrap: { position: 'relative', justifyContent: 'center' },
+  inputWithUnit: { paddingRight: 40 },
   unit: {
     position: 'absolute',
     right: 14,
@@ -225,86 +304,38 @@ const styles = StyleSheet.create({
     color: colors.missing,
     fontFamily: fonts.monoRegular,
   },
-  autoPanel: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-  },
-  autoHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    marginBottom: 6,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.sage,
-  },
-  autoHeaderLabel: {
-    fontSize: 10,
-    letterSpacing: 1.8,
-    textTransform: 'uppercase',
-    color: colors.missing,
-  },
   autoRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 9,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderFaint,
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderFaint,
   },
-  autoRowLabel: {
+  autoRowLast: { borderBottomWidth: 0 },
+  autoLabel: {
+    fontFamily: fonts.bodyRegular,
     fontSize: 13,
     color: colors.textSecondary,
   },
-  autoScore: {
-    fontFamily: fonts.displayBold,
-    fontSize: 16,
+  autoRight: { flex: 1, alignItems: 'flex-end' },
+  autoValue: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 14,
+    color: colors.navy,
+    textAlign: 'right',
+  },
+  mono: { fontFamily: fonts.monoRegular },
+  emphasize: {
+    fontFamily: fonts.displaySemiBold,
     color: colors.copper,
+    fontSize: 18,
   },
-  autoMono: {
-    fontFamily: fonts.monoRegular,
-    fontSize: 14,
-    color: colors.navy,
-  },
-  autoMonoSmall: {
-    fontFamily: fonts.monoRegular,
-    fontSize: 13,
-    color: colors.navy,
-  },
-  autoBody: {
-    fontSize: 14,
-    color: colors.navy,
-    fontFamily: fonts.bodyMedium,
-  },
-  saveButton: {
-    width: '100%',
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: colors.copper,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 22,
-  },
-  saveLabel: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 15,
+  action: {
     fontFamily: fonts.bodySemiBold,
+    fontSize: 12,
+    color: colors.copper,
+    marginTop: 2,
   },
-  secondaryButton: {
-    marginTop: 14,
-    alignItems: 'center',
-  },
-  secondaryLabel: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontFamily: fonts.bodyMedium,
-  },
+  save: { marginTop: 20, marginBottom: 8 },
 });
