@@ -177,7 +177,7 @@ export function CatchDetailsFormScreen({
         </View>
       </View>
 
-      <Text style={styles.group}>Recorded by DragonFly</Text>
+      <Text style={styles.group}>Recorded by DragonFly 1.0</Text>
       <Card>
         <AutoRow label="Catch score" value={String(autoScore)} emphasize />
         <AutoRow label="Fight duration" value={fmtElapsed(autoFightSeconds)} mono />

@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fonts, radii, shadows } from '../theme';
 import { StatusChip } from './StatusChip';
 import { PrimaryButton } from './PrimaryButton';
+import { HARDWARE_NAME } from '../lib/product';
 import type { BleConnectionStatus } from '../types';
 
 interface Props {
@@ -13,6 +14,8 @@ interface Props {
   onConnect?: () => void;
   onStartFishing?: () => void;
   compact?: boolean;
+  /** Hide the primary CTA (when Home already has a single job elsewhere). */
+  hideAction?: boolean;
 }
 
 export function DeviceStatus({
@@ -22,37 +25,38 @@ export function DeviceStatus({
   onConnect,
   onStartFishing,
   compact,
+  hideAction,
 }: Props) {
   const isConnected = status === 'connected';
   const isConnecting = status === 'connecting' || connecting;
 
   const chipTone = isConnected ? 'ok' : isConnecting ? 'caution' : error ? 'alert' : 'neutral';
   const chipLabel = isConnected
-    ? 'Connected'
+    ? 'Live'
     : isConnecting
       ? 'Connecting…'
       : error
-        ? 'Connection issue'
+        ? 'Needs attention'
         : 'Not connected';
 
   const statusText = isConnected
-    ? 'Rod attachment is live. Hand off the fight with confidence.'
+    ? 'Rod sensor is live. When the fish takes, Fish On coaches the fight.'
     : isConnecting
-      ? 'Looking for your DragonFly…'
-      : 'Clip on DragonFly, then connect to unlock live coaching.';
+      ? `Looking for ${HARDWARE_NAME}…`
+      : `Clip on ${HARDWARE_NAME}, then connect for live coaching.`;
 
   return (
     <View style={[styles.wrap, compact && styles.compact]} accessibilityRole="summary">
       <LinearGradient
-        colors={isConnected ? ['#1A3348', '#152536'] : ['#243447', '#1A2838']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradient}
+        colors={isConnected ? ['#243955', '#1B2A41'] : ['#2F4058', '#1B2A41']}
+        start={{ x: 0.1, y: 0 }}
+        end={{ x: 0.9, y: 1 }}
+        style={[styles.gradient, compact && styles.gradientCompact]}
       >
         <View style={styles.header}>
           <View style={styles.headerText}>
-            <Text style={styles.kicker}>Hardware</Text>
-            <Text style={styles.title}>DragonFly</Text>
+            <Text style={styles.kicker}>Your rod sensor</Text>
+            <Text style={styles.title}>{HARDWARE_NAME}</Text>
           </View>
           <StatusChip label={chipLabel} tone={chipTone} />
         </View>
@@ -62,18 +66,20 @@ export function DeviceStatus({
             {error}
           </Text>
         ) : null}
-        <View style={styles.actions}>
-          {!isConnected ? (
-            <PrimaryButton
-              label={isConnecting ? 'Connecting…' : error ? 'Try again' : 'Connect DragonFly'}
-              onPress={onConnect ?? (() => undefined)}
-              loading={isConnecting}
-              disabled={isConnecting || !onConnect}
-            />
-          ) : onStartFishing ? (
-            <PrimaryButton label="Start Fishing" onPress={onStartFishing} />
-          ) : null}
-        </View>
+        {!hideAction ? (
+          <View style={styles.actions}>
+            {!isConnected ? (
+              <PrimaryButton
+                label={isConnecting ? 'Connecting…' : error ? 'Try again' : `Connect ${HARDWARE_NAME}`}
+                onPress={onConnect ?? (() => undefined)}
+                loading={isConnecting}
+                disabled={isConnecting || !onConnect}
+              />
+            ) : onStartFishing ? (
+              <PrimaryButton label="Start fishing" onPress={onStartFishing} />
+            ) : null}
+          </View>
+        ) : null}
       </LinearGradient>
     </View>
   );
@@ -87,8 +93,11 @@ const styles = StyleSheet.create({
   },
   compact: {},
   gradient: {
-    padding: 20,
+    padding: 22,
     gap: 12,
+  },
+  gradientCompact: {
+    padding: 18,
   },
   header: {
     flexDirection: 'row',
@@ -100,21 +109,21 @@ const styles = StyleSheet.create({
   kicker: {
     fontFamily: fonts.bodySemiBold,
     fontSize: 11,
-    letterSpacing: 1.1,
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
     color: colors.copperSoft,
     marginBottom: 4,
   },
   title: {
     fontFamily: fonts.displaySemiBold,
-    fontSize: 24,
-    letterSpacing: -0.4,
+    fontSize: 26,
+    letterSpacing: -0.5,
     color: colors.textOnDark,
   },
   body: {
     fontFamily: fonts.bodyRegular,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 15,
+    lineHeight: 22,
     color: colors.textOnDarkSecondary,
   },
   error: {
@@ -124,6 +133,6 @@ const styles = StyleSheet.create({
     color: colors.copperSoft,
   },
   actions: {
-    marginTop: 4,
+    marginTop: 6,
   },
 });

@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Catch, CatchForm, FightOutcome, Phase, Route, Tab } from '../types';
+import type { Catch, CatchForm, FightOutcome, FishingTrip, Phase, Route, Tab } from '../types';
 import { fmtDate, fmtTime } from '../lib/format';
 import {
   DEFAULT_LOCATION,
   computeJourneySummary,
   loadCatches,
+  loadGear,
   loadLocation,
+  loadTrips,
   saveCatches,
+  saveGear,
   saveLocation,
+  saveTrips,
   seedCatches,
 } from '../lib/storage';
 import { buildSessionAnalytics } from '../coaching/analytics';
@@ -15,6 +19,7 @@ import { computeSignalStats } from '../coaching/engine';
 import { createFightSimulator } from '../sim/fightSimulator';
 import { isOpenAiConfigured } from '../ai/openaiConfig';
 import { reviewFightWithOpenAI } from '../ai/fightReview';
+import { gearSummary, type GearConfig } from '../lib/gear';
 import { useBleSession } from './useBleSession';
 
 export const LOCATIONS = ['Lake Sammamish', 'Lake Washington', 'Snoqualmie River', 'Green Lake', 'Lake Union'];
@@ -27,7 +32,8 @@ function finalizeCatchFromSamples(
   samples: number[],
   fightSeconds: number,
   location: string,
-  outcome: FightOutcome
+  outcome: FightOutcome,
+  gear: GearConfig | null
 ): Catch {
   const analytics = buildSessionAnalytics(samples, outcome);
   const avg =
@@ -57,6 +63,8 @@ function finalizeCatchFromSamples(
     whatWentWell: analytics.whatWentWell,
     improvement: analytics.improvement,
     scoreSource: 'average',
+    rodId: gear?.rodId,
+    lineId: gear?.lineId,
   };
 }
 
@@ -78,6 +86,9 @@ export function useDragonflyState() {
   const [simValues, setSimValues] = useState<number[]>([]);
   const [simEnding, setSimEnding] = useState(false);
   const [aiReviewStatus, setAiReviewStatus] = useState<AiReviewStatus>('idle');
+  const [gear, setGear] = useState<GearConfig | null>(null);
+  const [trips, setTrips] = useState<FishingTrip[]>([]);
+  const [gearReturnPhase, setGearReturnPhase] = useState<Phase>('ready');
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scoreTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -86,16 +97,28 @@ export function useDragonflyState() {
   const simRef = useRef(createFightSimulator({ intervalMs: 120 }));
   const pendingOutcomeRef = useRef<FightOutcome>('landed');
   const aiReviewGenRef = useRef(0);
+  const gearRef = useRef<GearConfig | null>(null);
 
   const ble = useBleSession();
 
   useEffect(() => {
+    gearRef.current = gear;
+  }, [gear]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [storedCatches, storedLocation] = await Promise.all([loadCatches(), loadLocation()]);
+      const [storedCatches, storedLocation, storedGear, storedTrips] = await Promise.all([
+        loadCatches(),
+        loadLocation(),
+        loadGear(),
+        loadTrips(),
+      ]);
       if (cancelled) return;
       setCatches(storedCatches ?? seedCatches());
       if (storedLocation) setLocation(storedLocation);
+      if (storedGear) setGear(storedGear);
+      setTrips(storedTrips);
       setHydrated(true);
     })();
     return () => {
@@ -112,6 +135,16 @@ export function useDragonflyState() {
     if (!hydrated) return;
     saveLocation(location);
   }, [location, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated || !gear) return;
+    saveGear(gear);
+  }, [gear, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    saveTrips(trips);
+  }, [trips, hydrated]);
 
   useEffect(() => {
     if (!simulating) lastValuesRef.current = ble.values;
@@ -286,7 +319,13 @@ export function useDragonflyState() {
         simRef.current.stop();
         clearFightTimer();
         const samples = lastValuesRef.current;
-        const cat = finalizeCatchFromSamples(samples, elapsedRef.current, location, outcome);
+        const cat = finalizeCatchFromSamples(
+          samples,
+          elapsedRef.current,
+          location,
+          outcome,
+          gearRef.current
+        );
         setSimulating(false);
         setSimEnding(false);
         presentScore(cat, samples);
@@ -330,6 +369,8 @@ export function useDragonflyState() {
       whatWentWell: analytics.whatWentWell,
       improvement: analytics.improvement,
       scoreSource: 'average',
+      rodId: gearRef.current?.rodId,
+      lineId: gearRef.current?.lineId,
     };
     pendingOutcomeRef.current = 'landed';
     presentScore(cat, samples);
@@ -438,28 +479,78 @@ export function useDragonflyState() {
 
   const startFishing = useCallback(() => {
     setTab('fishing');
+    setDetailView(null);
+    if (!gearRef.current) {
+      setGearReturnPhase('ready');
+      setPhase('gear');
+      return;
+    }
     setPhase('ready');
+  }, []);
+
+  const goSocial = useCallback(() => {
+    setTab('social');
+    setDetailView(null);
+    if (phase !== 'active') setPhase('ready');
+  }, [phase]);
+
+  const goSettings = useCallback(() => {
+    setTab('settings');
+    setDetailView(null);
+    if (phase !== 'active') setPhase('ready');
+  }, [phase]);
+
+  const openGearSetup = useCallback((returnPhase: Phase = 'ready') => {
+    setGearReturnPhase(returnPhase);
+    setTab('fishing');
+    setPhase('gear');
     setDetailView(null);
   }, []);
 
-  /** Center nav button: open Fishing, or start fight / demo if already there. */
-  const onFishOn = useCallback(() => {
-    if (phase === 'active') return;
+  const saveGearConfig = useCallback(
+    (next: GearConfig) => {
+      setGear(next);
+      setPhase(gearReturnPhase === 'gear' ? 'ready' : gearReturnPhase);
+      setTab('fishing');
+    },
+    [gearReturnPhase]
+  );
+
+  const skipGearSetup = useCallback(() => {
+    setPhase('ready');
+    setTab('fishing');
+  }, []);
+
+  const createTrip = useCallback((draft: Omit<FishingTrip, 'id' | 'createdAt'>) => {
+    const trip: FishingTrip = {
+      ...draft,
+      id: `t${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    setTrips((prev) => [trip, ...prev]);
+  }, []);
+
+  /** Center nav: open Fishing, start fight if connected, or ask before simulating. */
+  const onFishOn = useCallback((): 'navigated' | 'needs_choice' | 'started' | 'ignored' => {
+    if (phase === 'active') return 'ignored';
     if (tab === 'fishing' && phase === 'ready') {
       if (ble.connectionStatus === 'connected') {
         void startFight();
-      } else {
-        startSimulatedFight();
+        return 'started';
       }
-      return;
+      return 'needs_choice';
     }
     startFishing();
-  }, [phase, tab, ble.connectionStatus, startFight, startSimulatedFight, startFishing]);
+    return 'navigated';
+  }, [phase, tab, ble.connectionStatus, startFight, startFishing]);
 
   let route: Route;
   if (phase === 'details') route = 'details';
+  else if (phase === 'gear') route = 'gear';
   else if (detailView) route = 'detail';
   else if (tab === 'home') route = 'home';
+  else if (tab === 'social') route = 'social';
+  else if (tab === 'settings') route = 'settings';
   else if (tab === 'journey') route = catches.length ? 'gallery' : 'empty';
   else route = phase;
 
@@ -477,6 +568,9 @@ export function useDragonflyState() {
     detailView,
     editing,
     catches,
+    trips,
+    gear,
+    gearLabel: gearSummary(gear),
     route,
     locations,
     journeySummary,
@@ -502,6 +596,8 @@ export function useDragonflyState() {
       goHome,
       goFishing,
       goJourney,
+      goSocial,
+      goSettings,
       openLoc,
       closeLoc,
       setLoc,
@@ -525,6 +621,10 @@ export function useDragonflyState() {
       deleteCatch,
       startFishing,
       connectDevice: ble.connect,
+      openGearSetup,
+      saveGearConfig,
+      skipGearSetup,
+      createTrip,
     },
   };
 }

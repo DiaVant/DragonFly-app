@@ -1,6 +1,6 @@
-# DragonFly 1.0
+# DragonFly
 
-DragonFly is an M&TSI product: a compact smart fishing-rod attachment that monitors the fish fight and helps beginners manage drag and line tension. The app helps experienced anglers confidently introduce children, family, and friends to fishing.
+DragonFly is an M&TSI product: **DragonFly 1.0** is the compact smart fishing-rod attachment that monitors the fish fight and helps beginners manage drag and line tension. The app helps experienced anglers confidently introduce children, family, and friends to fishing.
 
 This repository is an Expo (SDK 57) React Native app that runs on **iOS**, **Android**, and **web**.
 
@@ -46,13 +46,31 @@ Design Lab is gated with `__DEV__` **and** `EXPO_PUBLIC_DESIGN_LAB=true`.
 
 ## Hardware / BLE testing notes
 
-- Device name: `DragonFly`
+- Device name (BLE advertise): `DragonFly`
+- Product name in-app: **DragonFly 1.0**
 - Service / characteristic UUIDs and `START` / `STOP` commands are unchanged — see `src/ble/constants.ts`
 - Web: Chrome or Edge on localhost/HTTPS; user gesture required for `requestDevice`
 - Native: `react-native-ble-plx` with the Expo config plugin permission string
 - Session samples are a **unitless relative tension index**, not calibrated pounds or force
 - Baseline catch score (without OpenAI): average of collected samples, rounded
 - With OpenAI configured: post-fight rubric score + coaching replace the baseline after review
+
+## Style guide
+
+Colors and type follow the product system:
+
+- Midnight Navy `#1B2A41` · Slate Blue `#4B6A88` · Copper `#B87444` · Pale Fog `#F5F7F7` · Cool Sage `#8FA89A`
+- Display: **Chakra Petch** · Body: **IBM Plex Sans** · Data: **IBM Plex Mono**
+
+Tokens live in `src/theme/colors.ts` and `src/theme/typography.ts`.
+
+## Gear calibration
+
+Before Fish On, the app asks for **rod + line** so DragonFly 1.0 can calibrate relative tension. Config is stored locally and stamped onto catches.
+
+## Social
+
+The **Social** tab is a Strava-style activity feed: share one catch, or bundle fights into a **fishing trip**, then share via the system sheet (Messages, Facebook, etc.).
 
 ## OpenAI post-fight review (optional)
 

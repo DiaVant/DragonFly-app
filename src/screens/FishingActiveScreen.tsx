@@ -7,6 +7,7 @@ import { evaluateCoaching } from '../coaching/engine';
 import { evaluateDragAdvice, type DragAction } from '../coaching/dragAdvisor';
 import type { CoachingStateId } from '../coaching/types';
 import { fmtElapsed } from '../lib/format';
+import { HARDWARE_NAME } from '../lib/product';
 
 interface Props {
   location: string;
@@ -20,30 +21,31 @@ interface Props {
   awaitingEnd?: boolean;
   stopping?: boolean;
   simulated?: boolean;
+  gearLabel?: string;
 }
 
 /**
- * Clean fight layout for iPhone-class screens:
- * status → coaching → gauge/drag → trend → actions.
- * Fixed proportions — no flex-bloated panels.
+ * Live fight — fixed vertical slots so coaching updates never shove the layout.
+ * Soft peach / sage accents within the style guide.
  */
 export function FishingActiveScreen({
   location,
   elapsed,
   samples,
   sampleCount,
-  expectedCount,
   receiving,
   onLandFish,
   onLoseFish,
   awaitingEnd,
   stopping,
   simulated,
+  gearLabel,
 }: Props) {
   const insets = useSafeAreaInsets();
   const { width: winW } = useWindowDimensions();
   const phone = winW < 430;
   const pad = phone ? spacing.screenNarrow : spacing.screen;
+  const gaugeSize = phone ? 108 : 120;
 
   const waiting = Boolean(awaitingEnd || stopping);
   const holdRef = useRef<{ id: CoachingStateId; sinceMs: number } | null>(null);
@@ -95,7 +97,7 @@ export function FishingActiveScreen({
   useEffect(() => {
     Animated.timing(dragAnim, {
       toValue: dragPct,
-      duration: 180,
+      duration: 220,
       useNativeDriver: false,
     }).start();
   }, [dragPct, dragAnim]);
@@ -116,24 +118,35 @@ export function FishingActiveScreen({
           <StatusChip
             label={
               waiting
-                ? 'Ending fight'
+                ? 'Ending…'
                 : simulated
-                  ? 'Live simulation'
+                  ? 'Practice'
                   : receiving
-                    ? 'Receiving'
+                    ? HARDWARE_NAME
                     : 'Listening'
             }
-            tone={waiting ? 'caution' : simulated ? 'info' : 'onDark'}
+            tone={waiting ? 'caution' : simulated ? 'info' : 'ok'}
           />
-          <Text style={styles.location} numberOfLines={1}>
-            {location}
-          </Text>
+          <View style={styles.topRight}>
+            {gearLabel ? (
+              <Text style={styles.gear} numberOfLines={1}>
+                {gearLabel}
+              </Text>
+            ) : null}
+            <Text style={styles.location} numberOfLines={1}>
+              {location}
+            </Text>
+          </View>
         </View>
 
-        <CoachingCard coaching={coaching} dark />
+        <View style={styles.coachSlot}>
+          <CoachingCard coaching={coaching} />
+        </View>
 
         <View style={styles.mid}>
-          <TensionGauge value={latest} baseline={baseline} dark size={phone ? 112 : 128} />
+          <View style={[styles.gaugeSlot, { width: gaugeSize, height: gaugeSize + 18 }]}>
+            <TensionGauge value={latest} baseline={baseline} size={gaugeSize} />
+          </View>
           <View style={styles.side}>
             <Text style={styles.timerLabel}>Fight time</Text>
             <Text style={styles.timer} accessibilityLabel={`Elapsed ${fmtElapsed(elapsed)}`}>
@@ -142,10 +155,10 @@ export function FishingActiveScreen({
 
             <View
               style={styles.dragBlock}
-              accessibilityLabel={`Relative drag ${dragLabel}. ${dragAdvice.reason}`}
+              accessibilityLabel={`Drag coach ${dragLabel}. ${dragAdvice.reason}`}
             >
               <View style={styles.dragHeader}>
-                <Text style={styles.dragTitle}>Relative drag</Text>
+                <Text style={styles.dragTitle}>Drag</Text>
                 <Text style={styles.dragValue}>{dragLabel}</Text>
               </View>
               <View style={styles.dragTrack}>
@@ -155,19 +168,17 @@ export function FishingActiveScreen({
               <Text style={styles.dragReason} numberOfLines={2}>
                 {dragAdvice.reason}
               </Text>
-              <Text style={styles.sampleMeta}>{sampleCount} samples</Text>
             </View>
           </View>
         </View>
 
-        <View style={styles.trend}>
+        <View style={styles.trendSlot}>
           <TensionChart
             samples={chartSamples}
-            dark
             live
-            height={72}
-            label="Relative tension trend"
-            caption={`Live · ${sampleCount} samples`}
+            height={64}
+            label="Tension"
+            caption={`${sampleCount} samples`}
           />
         </View>
       </View>
@@ -186,7 +197,6 @@ export function FishingActiveScreen({
           label={waiting ? '…' : "Didn't land"}
           onPress={onLoseFish}
           disabled={waiting}
-          tone="onDark"
           style={styles.lose}
           accessibilityHint="Ends the fight without a catch — saves coaching so you can learn from the mistake"
         />
@@ -198,7 +208,7 @@ export function FishingActiveScreen({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.fightBg,
+    backgroundColor: '#F7F3EF',
   },
   content: {
     flex: 1,
@@ -206,45 +216,74 @@ const styles = StyleSheet.create({
     maxWidth: layout.maxContentWidth,
     alignSelf: 'center',
     paddingTop: 10,
-    gap: 14,
   },
   top: {
+    height: 36,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
+    marginBottom: 12,
+  },
+  topRight: { flex: 1, alignItems: 'flex-end' },
+  gear: {
+    fontFamily: fonts.monoRegular,
+    fontSize: 11,
+    color: colors.slateBlue,
+    marginBottom: 2,
+    maxWidth: '100%',
   },
   location: {
-    flex: 1,
-    textAlign: 'right',
     fontFamily: fonts.bodyMedium,
     fontSize: 13,
-    color: colors.textOnDarkSecondary,
+    color: colors.textSecondary,
+  },
+  coachSlot: {
+    height: 148,
+    marginBottom: 14,
   },
   mid: {
+    height: 148,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    marginBottom: 12,
+  },
+  gaugeSlot: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   side: {
     flex: 1,
     minWidth: 0,
-    gap: 4,
+    height: '100%',
+    justifyContent: 'center',
   },
   timerLabel: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 12,
-    color: colors.textOnDarkSecondary,
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: colors.slateBlue,
   },
   timer: {
-    fontFamily: fonts.displaySemiBold,
+    fontFamily: fonts.displayBold,
     fontSize: 36,
     lineHeight: 40,
-    color: colors.textOnDark,
+    color: colors.navy,
     marginBottom: 8,
+    letterSpacing: -0.5,
   },
   dragBlock: {
-    gap: 6,
+    height: 78,
+    gap: 5,
+    backgroundColor: '#FFF9F4',
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(184,116,68,0.22)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    justifyContent: 'center',
   },
   dragHeader: {
     flexDirection: 'row',
@@ -255,49 +294,44 @@ const styles = StyleSheet.create({
   dragTitle: {
     fontFamily: fonts.bodyMedium,
     fontSize: 12,
-    color: colors.textOnDarkSecondary,
+    color: colors.textSecondary,
   },
   dragValue: {
     fontFamily: fonts.bodySemiBold,
     fontSize: 13,
-    color: colors.lakeSoft,
+    color: colors.copper,
   },
   dragTrack: {
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(184,116,68,0.12)',
     overflow: 'visible',
     justifyContent: 'center',
   },
   dragFill: {
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.lakeSoft,
+    backgroundColor: colors.copper,
   },
   dragKnob: {
     position: 'absolute',
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: colors.textOnDark,
+    backgroundColor: '#FFF9F4',
     marginLeft: -7,
     borderWidth: 2,
-    borderColor: colors.lakeSoft,
+    borderColor: colors.copper,
   },
   dragReason: {
     fontFamily: fonts.bodyRegular,
     fontSize: 11,
-    lineHeight: 15,
-    color: 'rgba(255,255,255,0.62)',
-    marginTop: 2,
+    lineHeight: 14,
+    height: 28,
+    color: colors.textSecondary,
   },
-  sampleMeta: {
-    fontFamily: fonts.monoRegular,
-    fontSize: 11,
-    color: colors.textOnDarkSecondary,
-  },
-  trend: {
-    marginTop: 2,
+  trendSlot: {
+    height: 96,
   },
   footer: {
     width: '100%',
@@ -306,11 +340,12 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     gap: 4,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopColor: 'rgba(184,116,68,0.14)',
+    backgroundColor: '#F7F3EF',
   },
   land: {
     minHeight: 52,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
   },
   lose: {
     minHeight: 44,

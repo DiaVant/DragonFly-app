@@ -179,7 +179,7 @@ export function DesignLab() {
             location={location}
             connectionStatus={stateId === 'starting_session' ? 'connecting' : 'connected'}
             onOpenLocation={() => setLocOpen(true)}
-            onStartFight={() => go('starting_session')}
+            onFishOn={() => go('starting_session')}
             onSimulateFight={() => go('fight_stable')}
             onConnect={() => go('connecting')}
             connecting={stateId === 'starting_session'}
@@ -407,7 +407,9 @@ export function DesignLab() {
               <TabBar
                 tab={labTab}
                 onHome={() => go('connected')}
+                onSocial={() => go('journey_multiple')}
                 onJourney={() => go(catches.length ? 'journey_multiple' : 'journey_empty')}
+                onSettings={() => go('connected')}
                 onFishOn={() => {
                   if (labTab === 'fishing') go('fight_stable');
                   else go('fishing_ready');

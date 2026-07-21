@@ -1,6 +1,18 @@
-export type Tab = 'home' | 'fishing' | 'journey';
-export type Phase = 'ready' | 'active' | 'score' | 'lost' | 'details';
-export type Route = 'home' | 'ready' | 'active' | 'score' | 'lost' | 'details' | 'empty' | 'gallery' | 'detail';
+export type Tab = 'home' | 'social' | 'fishing' | 'journey' | 'settings';
+export type Phase = 'ready' | 'active' | 'score' | 'lost' | 'details' | 'gear';
+export type Route =
+  | 'home'
+  | 'ready'
+  | 'active'
+  | 'score'
+  | 'lost'
+  | 'details'
+  | 'empty'
+  | 'gallery'
+  | 'detail'
+  | 'social'
+  | 'gear'
+  | 'settings';
 
 export interface CoachingEventStored {
   id: string;
@@ -46,6 +58,20 @@ export interface Catch {
   scoreRationale?: string;
   /** Model id when scoreSource is openai. */
   aiModel?: string;
+  /** Gear used for calibration context. */
+  rodId?: string;
+  lineId?: string;
+}
+
+/** Bundled outing shared to Social like a Strava activity. */
+export interface FishingTrip {
+  id: string;
+  title: string;
+  location: string;
+  date: string;
+  catchIds: string[];
+  createdAt: string;
+  caption?: string;
 }
 
 export interface CatchForm {

@@ -48,8 +48,8 @@ export function CatchScoreScreen({
       : catchItem?.scoreSource === 'openai'
         ? catchItem.scoreRationale || 'Scored by AI coach from relative tension control'
         : aiReviewStatus === 'error'
-          ? 'AI unavailable — averaged from DragonFly samples'
-          : 'Averaged from DragonFly samples';
+          ? 'AI unavailable — averaged from sensor samples'
+          : 'Averaged from DragonFly 1.0 samples';
 
   return (
     <Screen scroll>
@@ -98,8 +98,10 @@ export function CatchScoreScreen({
         )}
       </View>
 
+      <Text style={styles.journeyHint}>You’ll save this catch to Journey next.</Text>
+
       <PrimaryButton label="Add catch details" onPress={onAddDetails} style={styles.primary} />
-      <SecondaryButton label="Save without details" onPress={onSkip} />
+      <SecondaryButton label="Save to Journey" onPress={onSkip} />
     </Screen>
   );
 }
@@ -182,5 +184,13 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   chart: { marginTop: 16 },
+  journeyHint: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginBottom: 14,
+  },
   primary: { marginBottom: 10 },
 });

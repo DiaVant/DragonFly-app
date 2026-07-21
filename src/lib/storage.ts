@@ -1,9 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Catch } from '../types';
+import type { Catch, FishingTrip } from '../types';
+import type { GearConfig } from './gear';
 import { catchPhotoUri, defaultPhotoForCatch } from './defaultPhotos';
 
 const CATCHES_KEY = 'dragonfly.catches';
 const LOCATION_KEY = 'dragonfly.location';
+const GEAR_KEY = 'dragonfly.gear';
+const TRIPS_KEY = 'dragonfly.trips';
 
 export const DEFAULT_LOCATION = 'Lake Sammamish';
 
@@ -84,6 +87,8 @@ export function normalizeCatch(raw: Partial<Catch> & { id: string }): Catch {
     scoreSource: raw.scoreSource === 'openai' ? 'openai' : raw.scoreSource === 'average' ? 'average' : undefined,
     scoreRationale: raw.scoreRationale,
     aiModel: raw.aiModel,
+    rodId: raw.rodId,
+    lineId: raw.lineId,
   };
 }
 
@@ -109,6 +114,35 @@ export async function loadLocation(): Promise<string | null> {
 
 export async function saveLocation(location: string): Promise<void> {
   await AsyncStorage.setItem(LOCATION_KEY, location);
+}
+
+export async function loadGear(): Promise<GearConfig | null> {
+  const raw = await AsyncStorage.getItem(GEAR_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as GearConfig;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveGear(gear: GearConfig): Promise<void> {
+  await AsyncStorage.setItem(GEAR_KEY, JSON.stringify(gear));
+}
+
+export async function loadTrips(): Promise<FishingTrip[]> {
+  const raw = await AsyncStorage.getItem(TRIPS_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as FishingTrip[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveTrips(trips: FishingTrip[]): Promise<void> {
+  await AsyncStorage.setItem(TRIPS_KEY, JSON.stringify(trips));
 }
 
 export function computeJourneySummary(catches: Catch[]) {

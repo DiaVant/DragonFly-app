@@ -12,11 +12,11 @@ interface Props {
 
 const TONE: Record<Tone, { bg: string; fg: string; border: string }> = {
   neutral: { bg: 'rgba(21,37,54,0.05)', fg: colors.textSecondary, border: 'transparent' },
-  ok: { bg: 'rgba(42,138,85,0.12)', fg: colors.connected, border: 'transparent' },
-  caution: { bg: 'rgba(196,135,42,0.14)', fg: colors.caution, border: 'transparent' },
+  ok: { bg: 'rgba(143,168,154,0.18)', fg: '#5F7A6C', border: 'transparent' },
+  caution: { bg: 'rgba(184,116,68,0.14)', fg: colors.caution, border: 'transparent' },
   alert: { bg: 'rgba(192,69,58,0.12)', fg: colors.danger, border: 'transparent' },
-  info: { bg: 'rgba(42,122,136,0.12)', fg: colors.lake, border: 'transparent' },
-  onDark: { bg: 'rgba(255,255,255,0.08)', fg: colors.textOnDarkSecondary, border: 'transparent' },
+  info: { bg: 'rgba(75,106,136,0.14)', fg: colors.slateBlue, border: 'transparent' },
+  onDark: { bg: 'rgba(27,42,65,0.08)', fg: colors.textSecondary, border: 'transparent' },
 };
 
 export function StatusChip({ label, tone = 'neutral', style }: Props) {

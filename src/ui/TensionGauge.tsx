@@ -35,10 +35,10 @@ export function TensionGauge({
   const strokeDashoffset = arcLen * (1 - progress);
 
   const display = value == null ? '—' : value.toFixed(0);
-  const track = dark ? 'rgba(255,255,255,0.12)' : colors.border;
-  const fg = dark ? colors.lakeSoft : colors.lake;
+  const track = dark ? 'rgba(255,255,255,0.12)' : 'rgba(184,116,68,0.16)';
+  const fg = dark ? colors.copperSoft : colors.copper;
   const textColor = dark ? colors.textOnDark : colors.navy;
-  const muted = dark ? colors.textOnDarkSecondary : colors.textMuted;
+  const muted = dark ? colors.textOnDarkSecondary : colors.slateBlue;
   const cx = size / 2;
   const cy = size / 2;
   const valueSize = Math.round(size * 0.24);

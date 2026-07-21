@@ -67,8 +67,7 @@ export function FightLostScreen({
 
         <Text style={styles.title}>The fish got away</Text>
         <Text style={styles.lead}>
-          That still counts. Save this fight so the next one is smarter — beginners improve by reviewing losses,
-          not ignoring them.
+          That still counts. Save it to Journey — beginners improve by reviewing losses, not ignoring them.
         </Text>
 
         <View style={styles.metaRow}>
@@ -116,8 +115,8 @@ export function FightLostScreen({
           </View>
         ) : null}
 
-        <PrimaryButton label="Save what I learned" onPress={onSaveNotes} style={styles.primary} />
-        <SecondaryButton label="Save review to Journey" onPress={onSaveToJourney} />
+        <PrimaryButton label="Save to Journey" onPress={onSaveToJourney} style={styles.primary} />
+        <SecondaryButton label="Add a note first" onPress={onSaveNotes} />
         {onTryAgain ? (
           <SecondaryButton label="Fish On again" onPress={onTryAgain} style={styles.again} />
         ) : null}

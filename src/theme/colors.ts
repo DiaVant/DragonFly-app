@@ -1,58 +1,58 @@
 /**
- * DragonFly design tokens — premium outdoor-tech palette.
- * Dawn-mist surfaces over deep ink navy, copper for action,
- * lake teal for live sensor feedback.
+ * DragonFly design tokens — from the product style guide.
+ * Midnight navy structure, copper actions, pale fog canvas, cool sage success.
  */
 export const colors = {
-  // Brand
-  ink: '#0A121C',
-  navy: '#152536',
-  navyMuted: '#2A3F55',
-  slateBlue: '#5A758C',
-  copper: '#C4783F',
-  copperDark: '#A35F2E',
-  copperSoft: '#E0B08A',
-  lake: '#2A7A88',
-  lakeSoft: '#4FA0AE',
+  // Brand (style guide)
+  ink: '#1B2A41',
+  navy: '#1B2A41',
+  navyMuted: '#2F4058',
+  slateBlue: '#4B6A88',
+  copper: '#B87444',
+  copperDark: '#9A5F36',
+  copperSoft: '#D4A07A',
+  lake: '#4B6A88',
+  lakeSoft: '#6A86A0',
 
-  // Surfaces — cool mist, not flat SaaS gray
-  background: '#E6ECF0',
-  backgroundAlt: '#D5DEE5',
-  mist: '#F2F5F7',
-  surface: '#F7F9FA',
+  // Surfaces
+  background: '#F5F7F7',
+  backgroundAlt: '#E8ECEB',
+  mist: '#F5F7F7',
+  surface: '#FFFFFF',
   surfaceRaised: '#FFFFFF',
-  fightBg: '#081018',
-  fightSurface: '#121C2A',
-  fightPanel: '#182434',
+  /** Live fight stays on-brand pale fog (not a separate dark skin). */
+  fightBg: '#F5F7F7',
+  fightSurface: '#FFFFFF',
+  fightPanel: '#FFFFFF',
 
   // Text
-  text: '#152536',
-  textSecondary: '#4F6275',
-  textMuted: '#7A8B9A',
-  textOnDark: '#F2F5F7',
-  textOnDarkSecondary: '#9AABBA',
+  text: '#1B2A41',
+  textSecondary: '#5B6B7E',
+  textMuted: '#9AA7B4',
+  textOnDark: '#F5F7F7',
+  textOnDarkSecondary: '#C5CED6',
   textOnAccent: '#FFFFFF',
 
   // Borders
-  border: 'rgba(21, 37, 54, 0.1)',
-  borderFaint: 'rgba(21, 37, 54, 0.06)',
-  borderStrong: 'rgba(21, 37, 54, 0.16)',
+  border: '#E1E6E8',
+  borderFaint: 'rgba(27, 42, 65, 0.06)',
+  borderStrong: 'rgba(27, 42, 65, 0.14)',
 
   // Semantic
-  sage: '#3A8A6A',
-  sageSoft: '#7FA892',
-  connected: '#2A8A55',
-  caution: '#C4872A',
+  sage: '#8FA89A',
+  sageSoft: '#A8BDB2',
+  connected: '#8FA89A',
+  caution: '#B87444',
   danger: '#C0453A',
   dangerSoft: '#A85A3C',
-  missing: '#8A97A3',
+  missing: '#9AA7B4',
 
   // Overlays / atmosphere
-  overlay: 'rgba(10, 18, 28, 0.55)',
-  overlayLight: 'rgba(247, 249, 250, 0.94)',
-  dawnTop: '#C5D4DE',
-  dawnMid: '#E6ECF0',
-  dawnBottom: '#F2F5F7',
+  overlay: 'rgba(27, 42, 65, 0.45)',
+  overlayLight: 'rgba(245, 247, 247, 0.94)',
+  dawnTop: '#E8ECEB',
+  dawnMid: '#F5F7F7',
+  dawnBottom: '#FFFFFF',
 } as const;
 
 export type ColorToken = keyof typeof colors;

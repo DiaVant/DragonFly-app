@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "DragonFly",
-    "slug": "DragonFly",
+    "slug": "DragonFly-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,7 +11,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#152536",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -34,7 +34,7 @@
         {
           "isBackgroundEnabled": false,
           "neverForLocation": true,
-          "bluetoothAlwaysPermission": "Allow DragonFly to connect to your DragonFly Bluetooth device to record your catch."
+          "bluetoothAlwaysPermission": "Allow DragonFly to connect to your DragonFly 1.0 Bluetooth sensor to coach the fight."
         }
       ]
     ]

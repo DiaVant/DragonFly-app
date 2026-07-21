@@ -4,7 +4,7 @@ import type { CoachingResult, CoachingStateId } from './types';
 const COPY: Record<CoachingStateId, { title: string; detail: string; severity: CoachingResult['severity'] }> = {
   warming_up: {
     title: 'Reading the line…',
-    detail: 'Gathering relative tension samples from DragonFly.',
+    detail: 'Gathering relative tension samples from DragonFly 1.0.',
     severity: 'info',
   },
   keep_reeling: {
@@ -211,8 +211,8 @@ export function summarizeFight(
           : 'You completed the session and captured a catch score.',
       improvement:
         outcome === 'lost'
-          ? 'Next time keep DragonFly connected for the full fight so we can pinpoint where the fish got away.'
-          : 'Keep DragonFly connected for the full fight so coaching can calibrate to the line.',
+          ? 'Next time keep DragonFly 1.0 connected for the full fight so we can pinpoint where the fish got away.'
+          : 'Keep DragonFly 1.0 connected for the full fight so coaching can calibrate to the line.',
       events: [],
     };
   }

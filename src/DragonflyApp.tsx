@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Dimensions, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from './theme';
 import { useDragonflyState } from './hooks/useDragonflyState';
@@ -7,6 +7,8 @@ import { ScreenTransition } from './components/ScreenTransition';
 import { TabBar } from './components/TabBar';
 import { FishOnExpand, type FishOnOrigin } from './components/FishOnExpand';
 import { LocationSheet } from './components/LocationSheet';
+import { ConnectGuideSheet } from './components/ConnectGuideSheet';
+import { FishOnChoiceSheet } from './components/FishOnChoiceSheet';
 import { HomeScreen } from './screens/HomeScreen';
 import { FishingReadyScreen } from './screens/FishingReadyScreen';
 import { FishingActiveScreen } from './screens/FishingActiveScreen';
@@ -16,34 +18,95 @@ import { CatchDetailsFormScreen } from './screens/CatchDetailsFormScreen';
 import { JourneyEmptyScreen } from './screens/JourneyEmptyScreen';
 import { JourneyGalleryScreen } from './screens/JourneyGalleryScreen';
 import { CatchDetailScreen } from './screens/CatchDetailScreen';
+import { SocialFeedScreen } from './screens/SocialFeedScreen';
+import { GearSetupScreen } from './screens/GearSetupScreen';
+import { SettingsScreen } from './screens/SettingsScreen';
 import { ErrorState } from './ui';
+import { HARDWARE_NAME } from './lib/product';
+
+function centerBurstOrigin(): FishOnOrigin {
+  const { width, height } = Dimensions.get('window');
+  const size = 88;
+  return { x: (width - size) / 2, y: height * 0.42, size };
+}
 
 export function DragonflyApp() {
   const state = useDragonflyState();
   const { route, actions } = state;
   const [fishBurst, setFishBurst] = useState<FishOnOrigin | null>(null);
+  const [connectGuideOpen, setConnectGuideOpen] = useState(false);
+  const [fishChoiceOpen, setFishChoiceOpen] = useState(false);
   const skipTransitionRef = useRef(false);
   const fishActionPending = useRef(false);
+  const pendingBurstAction = useRef<'navigate' | 'start' | 'simulate' | null>(null);
+  const pendingChoiceOrigin = useRef<FishOnOrigin | null>(null);
 
-  const handleFishOnPress = useCallback((origin: FishOnOrigin) => {
+  const runBurst = useCallback((origin: FishOnOrigin, intent: 'navigate' | 'start' | 'simulate') => {
     if (fishActionPending.current || state.phase === 'active') return;
     fishActionPending.current = true;
     skipTransitionRef.current = true;
+    pendingBurstAction.current = intent;
     setFishBurst(origin);
   }, [state.phase]);
 
+  const handleFishOnPress = useCallback(
+    (origin: FishOnOrigin) => {
+      if (fishActionPending.current || state.phase === 'active') return;
+
+      // On Ready without hardware: ask before simulating (keep origin for burst).
+      if (
+        state.tab === 'fishing' &&
+        state.phase === 'ready' &&
+        state.ble.connectionStatus !== 'connected'
+      ) {
+        pendingChoiceOrigin.current = origin;
+        setFishChoiceOpen(true);
+        return;
+      }
+
+      runBurst(
+        origin,
+        state.tab === 'fishing' && state.phase === 'ready' ? 'start' : 'navigate'
+      );
+    },
+    [state.phase, state.tab, state.ble.connectionStatus, runBurst]
+  );
+
+  const handleSimulateBurst = useCallback(
+    (origin: FishOnOrigin) => {
+      runBurst(origin, 'simulate');
+    },
+    [runBurst]
+  );
+
   const handleFishCovered = useCallback(() => {
-    actions.onFishOn();
+    const intent = pendingBurstAction.current;
+    pendingBurstAction.current = null;
+    if (intent === 'simulate') {
+      actions.startSimulatedFight();
+      return;
+    }
+    if (intent === 'start') {
+      void actions.startFight();
+      return;
+    }
+    actions.startFishing();
   }, [actions]);
 
   const handleFishFinished = useCallback(() => {
     setFishBurst(null);
     fishActionPending.current = false;
-    // Allow the next normal navigation to animate again.
     requestAnimationFrame(() => {
       skipTransitionRef.current = false;
     });
   }, []);
+
+  const startPracticeWithBurst = useCallback(() => {
+    setFishChoiceOpen(false);
+    const origin = pendingChoiceOrigin.current ?? centerBurstOrigin();
+    pendingChoiceOrigin.current = null;
+    runBurst(origin, 'simulate');
+  }, [runBurst]);
 
   if (!state.hydrated) {
     return (
@@ -71,6 +134,7 @@ export function DragonflyApp() {
           onStartFishing={actions.startFishing}
           onOpenJourney={actions.goJourney}
           onOpenCatch={actions.openDetail}
+          onOpenTroubleshooting={() => setConnectGuideOpen(true)}
           summary={state.journeySummary}
           recentCatch={state.catches[0] ?? null}
         />
@@ -82,11 +146,25 @@ export function DragonflyApp() {
           location={state.location}
           connectionStatus={state.ble.connectionStatus}
           onOpenLocation={actions.openLoc}
-          onStartFight={actions.startFight}
-          onSimulateFight={actions.startSimulatedFight}
+          onFishOn={handleFishOnPress}
+          onSimulateFight={handleSimulateBurst}
           onConnect={actions.connectDevice}
           connecting={state.ble.connecting}
           error={state.ble.error}
+          gearLabel={state.gearLabel !== 'Not set' ? state.gearLabel : undefined}
+          onEditGear={() => actions.openGearSetup('ready')}
+        />
+      );
+      break;
+    case 'settings':
+      content = (
+        <SettingsScreen
+          connectionStatus={state.ble.connectionStatus}
+          gear={state.gear}
+          onEditGear={() => actions.openGearSetup('ready')}
+          onConnectHelp={() => setConnectGuideOpen(true)}
+          onConnect={actions.connectDevice}
+          connecting={state.ble.setupConnecting}
         />
       );
       break;
@@ -104,6 +182,7 @@ export function DragonflyApp() {
           awaitingEnd={state.ble.awaitingEnd}
           stopping={state.ble.stopping}
           simulated={state.simulating}
+          gearLabel={state.gearLabel !== 'Not set' ? state.gearLabel : undefined}
         />
       );
       break;
@@ -149,22 +228,36 @@ export function DragonflyApp() {
           autoLocation={eo?.location || state.location}
           onChangeLocation={actions.openLoc}
           autoDateTime={eo ? `${eo.date}${eo.time ? ` · ${eo.time}` : ''}` : ''}
-          saveLabel={
-            state.editing
-              ? 'Save changes'
-              : state.lastCatch?.outcome === 'lost'
-                ? 'Save to Journey'
-                : 'Save to Journey'
-          }
+          saveLabel={state.editing ? 'Save changes' : 'Save to Journey'}
           secondaryLabel={
             state.editing
               ? 'Cancel'
               : state.lastCatch?.outcome === 'lost'
                 ? 'Skip notes and save'
-                : 'Skip Details and Save'
+                : 'Skip details and save'
           }
           onSave={actions.saveCatch}
           onSecondary={state.editing ? actions.cancelEdit : actions.skipSave}
+        />
+      );
+      break;
+    case 'gear':
+      content = (
+        <GearSetupScreen
+          initial={state.gear}
+          onSave={actions.saveGearConfig}
+          onSkip={actions.skipGearSetup}
+        />
+      );
+      break;
+    case 'social':
+      content = (
+        <SocialFeedScreen
+          catches={state.catches}
+          trips={state.trips}
+          gear={state.gear}
+          onCreateTrip={actions.createTrip}
+          onStartFishing={actions.startFishing}
         />
       );
       break;
@@ -200,12 +293,12 @@ export function DragonflyApp() {
   }
 
   const screenKey = `${route}|${state.detailView ?? ''}`;
-  const hideTab = route === 'active' || route === 'score' || route === 'lost' || route === 'details';
+  const hideTab = route === 'active' || route === 'score' || route === 'lost' || route === 'details' || route === 'gear';
   const bursting = fishBurst != null;
 
   return (
     <View style={styles.shell}>
-      <SafeAreaView style={[styles.root, hideTab && styles.rootDark]} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
         <View style={styles.content}>
           <ScreenTransition screenKey={screenKey} instant={skipTransitionRef.current || bursting}>
             {content}
@@ -215,15 +308,17 @@ export function DragonflyApp() {
           <TabBar
             tab={state.tab}
             onHome={actions.goHome}
+            onSocial={actions.goSocial}
             onJourney={actions.goJourney}
+            onSettings={actions.goSettings}
             onFishOn={handleFishOnPress}
             fishOnHidden={bursting}
             fishOnActive={state.phase === 'active'}
             fishOnLabel={
               state.tab === 'fishing' && state.phase === 'ready'
                 ? state.ble.connectionStatus === 'connected'
-                  ? 'Fish On — start fight'
-                  : 'Fish On — start live simulation'
+                  ? `Fish On — start with ${HARDWARE_NAME}`
+                  : 'Fish On — connect or practice'
                 : 'Go fishing'
             }
           />
@@ -234,6 +329,24 @@ export function DragonflyApp() {
           current={state.location}
           onSelect={actions.setLoc}
           onClose={actions.closeLoc}
+        />
+        <ConnectGuideSheet
+          visible={connectGuideOpen}
+          connecting={state.ble.setupConnecting}
+          onConnect={() => {
+            setConnectGuideOpen(false);
+            actions.connectDevice();
+          }}
+          onClose={() => setConnectGuideOpen(false)}
+        />
+        <FishOnChoiceSheet
+          visible={fishChoiceOpen}
+          onConnect={() => {
+            setFishChoiceOpen(false);
+            actions.connectDevice();
+          }}
+          onPractice={startPracticeWithBurst}
+          onClose={() => setFishChoiceOpen(false)}
         />
       </SafeAreaView>
       <FishOnExpand origin={fishBurst} onCovered={handleFishCovered} onFinished={handleFishFinished} />

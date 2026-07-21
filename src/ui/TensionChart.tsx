@@ -37,14 +37,14 @@ export function TensionChart({
     [samples, width, height, live]
   );
 
-  const stroke = dark ? colors.lakeSoft : colors.lake;
+  const stroke = dark ? colors.copperSoft : colors.copper;
   const muted = dark ? colors.textOnDarkSecondary : colors.textMuted;
   const empty = samples.length < 2;
   const captionText = caption ?? 'Unitless relative index — not calibrated force';
 
   return (
     <View style={styles.wrap} accessibilityLabel={label} onLayout={onLayout}>
-      <Text style={[styles.label, live && dark && styles.labelLive, { color: live && dark ? colors.lakeSoft : muted }]}>
+      <Text style={[styles.label, live && dark && styles.labelLive, { color: live ? colors.copper : muted }]}>
         {label}
       </Text>
       {empty ? (

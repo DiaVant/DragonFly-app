@@ -215,7 +215,7 @@ export function connectionForState(id: DesignLabStateId): {
       return {
         status: 'disconnected',
         connecting: false,
-        error: 'DragonFly not found. Make sure it is powered on and nearby.',
+        error: 'DragonFly 1.0 not found. Make sure it is powered on and nearby.',
       };
     case 'starting_session':
       return { status: 'connecting', connecting: true, error: null };

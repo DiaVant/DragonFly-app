@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { Screen, AppHeader, DeviceStatus, Metric, SectionHeader, PrimaryButton } from '../ui';
 import { colors, fonts } from '../theme';
 import { CatchCard } from '../components/CatchCard';
+import { APP_NAME, HARDWARE_NAME } from '../lib/product';
 import type { BleConnectionStatus, Catch } from '../types';
 import { fmtElapsed } from '../lib/format';
 
@@ -43,7 +44,7 @@ export function HomeScreen({
 
   return (
     <Screen scroll>
-      <AppHeader title="DragonFly 1.0" subtitle={greeting} hero showMark />
+      <AppHeader title={APP_NAME} subtitle={greeting} hero showMark />
 
       <DeviceStatus
         status={connectionStatus}
@@ -56,7 +57,11 @@ export function HomeScreen({
       <View style={styles.journeyStrip}>
         <SectionHeader
           title="Journey"
-          subtitle={summary.total ? `${summary.total} catches on the water` : 'Your first catch starts here'}
+          subtitle={
+            summary.total
+              ? `${summary.total} saved ${summary.total === 1 ? 'fight' : 'fights'}`
+              : 'Landed and lost — both teach'
+          }
           action={
             <Pressable onPress={onOpenJourney} hitSlop={8} accessibilityRole="button" accessibilityLabel="Open Journey">
               <Text style={styles.link}>Open</Text>
@@ -64,7 +69,7 @@ export function HomeScreen({
           }
         />
         <View style={styles.metrics}>
-          <Metric label="Catches" value={String(summary.total)} mono />
+          <Metric label="Saved" value={String(summary.total)} mono />
           <Metric
             label="Average"
             value={summary.averageScore != null ? String(summary.averageScore) : '—'}
@@ -80,23 +85,25 @@ export function HomeScreen({
 
       {recentCatch ? (
         <View style={styles.section}>
-          <SectionHeader title="Last catch" />
+          <SectionHeader title="Last on the water" />
           <CatchCard item={recentCatch} onPress={() => onOpenCatch(recentCatch.id)} compact />
           <Text style={styles.footnote}>
             {fmtElapsed(recentCatch.fightSeconds)} · {recentCatch.location || 'Location not added'}
+            {recentCatch.outcome === 'lost' ? ' · Didn’t land' : ''}
           </Text>
         </View>
       ) : (
         <View style={styles.emptyPrompt}>
-          <Text style={styles.emptyTitle}>No catches yet</Text>
+          <Text style={styles.emptyTitle}>Your Journey is empty</Text>
           <Text style={styles.emptyBody}>
-            When you land a fish, DragonFly saves the fight score and coaching notes to your Journey.
+            After each fight, {APP_NAME} saves the score and coaching notes here — so beginners can learn from
+            every take.
           </Text>
-          <PrimaryButton
-            label={connected ? 'Start Fishing' : 'Connect DragonFly'}
-            onPress={connected ? onStartFishing : onConnect}
-            style={styles.emptyCta}
-          />
+          {!connected ? (
+            <Text style={styles.emptyHint}>Connect {HARDWARE_NAME} above, then Fish On.</Text>
+          ) : (
+            <PrimaryButton label="Fish On" onPress={onStartFishing} style={styles.emptyCta} />
+          )}
         </View>
       )}
 
@@ -104,10 +111,11 @@ export function HomeScreen({
         onPress={onOpenTroubleshooting}
         style={styles.trouble}
         accessibilityRole="button"
-        accessibilityLabel="Device troubleshooting"
+        accessibilityLabel={`How to connect ${HARDWARE_NAME}`}
+        disabled={!onOpenTroubleshooting}
       >
-        <Text style={styles.troubleTitle}>Need help connecting?</Text>
-        <Text style={styles.troubleBody}>Power on · stay nearby · allow Bluetooth · then Connect</Text>
+        <Text style={styles.troubleTitle}>Need help connecting {HARDWARE_NAME}?</Text>
+        <Text style={styles.troubleBody}>Power on · clip on · Bluetooth · Connect</Text>
       </Pressable>
     </Screen>
   );
@@ -154,13 +162,20 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: colors.textSecondary,
     marginTop: 8,
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  emptyHint: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.slateBlue,
   },
   emptyCta: {
-    maxWidth: 280,
+    maxWidth: 240,
+    marginTop: 4,
   },
   trouble: {
-    marginTop: 32,
+    marginTop: 36,
     marginBottom: 28,
     paddingVertical: 4,
   },

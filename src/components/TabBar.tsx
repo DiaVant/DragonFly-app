@@ -9,15 +9,35 @@ import type { FishOnOrigin } from './FishOnExpand';
 
 const ACTIVE = colors.copper;
 const IDLE = colors.textMuted;
-
-/** Nike-scale center CTA — sits proud of the tab bar. */
-const FISH_SIZE = 88;
+/** Slightly smaller so side tabs stay clear. */
+const FISH_SIZE = 80;
 
 function HomeIcon({ color }: { color: string }) {
   return (
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
       <Path d="M4 11.5 12 4l8 7.5" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
       <Path d="M6.5 10.5V20h11v-9.5" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function SocialIcon({ color }: { color: string }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Circle cx={8} cy={9} r={2.4} stroke={color} strokeWidth={1.7} />
+      <Circle cx={16} cy={9} r={2.4} stroke={color} strokeWidth={1.7} />
+      <Path
+        d="M4.5 17.5c.8-2.2 2.6-3.3 4.5-3.3s3.7 1.1 4.5 3.3"
+        stroke={color}
+        strokeWidth={1.7}
+        strokeLinecap="round"
+      />
+      <Path
+        d="M11.5 17.5c.6-1.6 1.9-2.5 3.5-2.5 1.8 0 3.2 1 4 2.5"
+        stroke={color}
+        strokeWidth={1.7}
+        strokeLinecap="round"
+      />
     </Svg>
   );
 }
@@ -39,24 +59,44 @@ function JourneyIcon({ color }: { color: string }) {
   );
 }
 
+function SettingsIcon({ color }: { color: string }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Circle cx={12} cy={12} r={3} stroke={color} strokeWidth={1.7} />
+      <Path
+        d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M5.6 18.4l1.6-1.6M16.8 7.2l1.6-1.6"
+        stroke={color}
+        strokeWidth={1.7}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
 interface Props {
   tab: Tab;
   onHome: () => void;
+  onSocial: () => void;
   onJourney: () => void;
-  /** Called with the Fish On button’s window rect so the expand burst can start from it. */
+  onSettings: () => void;
   onFishOn: (origin: FishOnOrigin) => void;
   fishOnLabel?: string;
   fishOnDisabled?: boolean;
   fishOnActive?: boolean;
   hideCenter?: boolean;
-  /** Hide the real button while the expand overlay is playing. */
   fishOnHidden?: boolean;
 }
 
+/**
+ * Symmetrical bar: Home · Social | Fish On | Journey · Settings
+ * Fish On is a real flex center column (not a full-width overlay), so side tabs stay tappable.
+ */
 export function TabBar({
   tab,
   onHome,
+  onSocial,
   onJourney,
+  onSettings,
   onFishOn,
   fishOnLabel = 'Fish On',
   fishOnDisabled,
@@ -82,14 +122,22 @@ export function TabBar({
   return (
     <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       <View style={styles.bar}>
-        <TabItem
-          label="Home"
-          active={tab === 'home'}
-          onPress={onHome}
-          icon={<HomeIcon color={tab === 'home' ? ACTIVE : IDLE} />}
-        />
+        <View style={styles.side}>
+          <TabItem
+            label="Home"
+            active={tab === 'home'}
+            onPress={onHome}
+            icon={<HomeIcon color={tab === 'home' ? ACTIVE : IDLE} />}
+          />
+          <TabItem
+            label="Social"
+            active={tab === 'social'}
+            onPress={onSocial}
+            icon={<SocialIcon color={tab === 'social' ? ACTIVE : IDLE} />}
+          />
+        </View>
 
-        <View style={styles.centerSlot}>
+        <View style={styles.centerCol}>
           {!hideCenter ? (
             <View
               ref={btnRef}
@@ -110,7 +158,7 @@ export function TabBar({
                 <LinearGradient
                   colors={
                     fishOnActive
-                      ? [colors.lakeSoft, colors.lake]
+                      ? [colors.slateBlue, colors.navy]
                       : [colors.copperSoft, colors.copper, colors.copperDark]
                   }
                   start={{ x: 0.2, y: 0 }}
@@ -127,12 +175,20 @@ export function TabBar({
           )}
         </View>
 
-        <TabItem
-          label="Journey"
-          active={tab === 'journey'}
-          onPress={onJourney}
-          icon={<JourneyIcon color={tab === 'journey' ? ACTIVE : IDLE} />}
-        />
+        <View style={styles.side}>
+          <TabItem
+            label="Journey"
+            active={tab === 'journey'}
+            onPress={onJourney}
+            icon={<JourneyIcon color={tab === 'journey' ? ACTIVE : IDLE} />}
+          />
+          <TabItem
+            label="Settings"
+            active={tab === 'settings'}
+            onPress={onSettings}
+            icon={<SettingsIcon color={tab === 'settings' ? ACTIVE : IDLE} />}
+          />
+        </View>
       </View>
     </View>
   );
@@ -156,6 +212,7 @@ function TabItem({
       accessibilityRole="tab"
       accessibilityState={{ selected: active }}
       accessibilityLabel={label}
+      hitSlop={6}
     >
       {icon}
       <Text style={[styles.label, { color: active ? ACTIVE : IDLE }]}>{label}</Text>
@@ -165,38 +222,49 @@ function TabItem({
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: 'rgba(247,249,250,0.92)',
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
-    borderTopColor: colors.borderFaint,
+    borderTopColor: colors.border,
     maxWidth: 480,
     width: '100%',
     alignSelf: 'center',
+    overflow: 'visible',
   },
   bar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingTop: 14,
-    paddingHorizontal: 12,
-    minHeight: 62,
+    paddingTop: 18,
+    paddingHorizontal: 2,
+    minHeight: 64,
+  },
+  side: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-evenly',
+    paddingBottom: 2,
+    zIndex: 2,
   },
   item: {
     flex: 1,
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     minHeight: touchTarget.min,
     justifyContent: 'center',
     paddingBottom: 4,
+    maxWidth: 76,
   },
   label: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: fonts.bodySemiBold,
-    letterSpacing: 0.2,
+    letterSpacing: 0.15,
   },
-  centerSlot: {
-    width: FISH_SIZE + 20,
+  centerCol: {
+    width: FISH_SIZE + 8,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    marginTop: -40,
+    marginTop: -36,
+    zIndex: 1,
   },
   centerPlaceholder: {
     width: FISH_SIZE,
@@ -212,8 +280,8 @@ const styles = StyleSheet.create({
     borderRadius: FISH_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 5,
-    borderColor: colors.mist,
+    borderWidth: 4,
+    borderColor: colors.surface,
   },
   fishOnDisabled: {
     opacity: 0.45,
@@ -223,14 +291,14 @@ const styles = StyleSheet.create({
   },
   fishOnTitle: {
     fontFamily: fonts.displaySemiBold,
-    fontSize: 16,
+    fontSize: 15,
     color: colors.textOnAccent,
-    lineHeight: 18,
+    lineHeight: 17,
   },
   fishOnSub: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 13,
+    fontSize: 12,
     color: 'rgba(255,255,255,0.92)',
-    lineHeight: 15,
+    lineHeight: 14,
   },
 });

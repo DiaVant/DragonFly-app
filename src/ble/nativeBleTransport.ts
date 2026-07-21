@@ -17,7 +17,7 @@ function scanAndConnect(): Promise<Device> {
       if (settled) return;
       settled = true;
       manager.stopDeviceScan();
-      reject(new Error('DragonFly not found.'));
+      reject(new Error('DragonFly 1.0 not found.'));
     }, SCAN_TIMEOUT_MS);
 
     manager
@@ -27,7 +27,7 @@ function scanAndConnect(): Promise<Device> {
           settled = true;
           clearTimeout(timeout);
           manager.stopDeviceScan();
-          reject(new Error('DragonFly not found.'));
+          reject(new Error('DragonFly 1.0 not found.'));
           return;
         }
         if (scannedDevice && (scannedDevice.name === DEVICE_NAME || scannedDevice.localName === DEVICE_NAME)) {
@@ -37,14 +37,14 @@ function scanAndConnect(): Promise<Device> {
           scannedDevice
             .connect()
             .then(resolve)
-            .catch(() => reject(new Error('Could not connect to DragonFly.')));
+            .catch(() => reject(new Error('Could not connect to DragonFly 1.0.')));
         }
       })
       .catch(() => {
         if (settled) return;
         settled = true;
         clearTimeout(timeout);
-        reject(new Error('DragonFly not found.'));
+        reject(new Error('DragonFly 1.0 not found.'));
       });
   });
 }
@@ -72,7 +72,7 @@ export const nativeBleTransport: BleTransport = {
     try {
       await device.discoverAllServicesAndCharacteristics();
     } catch {
-      throw new Error('Could not connect to DragonFly.');
+      throw new Error('Could not connect to DragonFly 1.0.');
     }
 
     disconnectSubRef?.remove();
@@ -102,7 +102,7 @@ export const nativeBleTransport: BleTransport = {
 
   async sendCommand(command) {
     const device = deviceRef;
-    if (!device) throw new Error('Not connected to DragonFly.');
+    if (!device) throw new Error('Not connected to DragonFly 1.0.');
     await device.writeCharacteristicWithResponseForService(SERVICE_UUID, CHARACTERISTIC_UUID, encodeCommand(command));
   },
 };

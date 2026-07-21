@@ -43,7 +43,7 @@ export const webBleTransport: BleTransport = {
           filters: [{ services: [SERVICE_UUID] }],
         });
       } catch {
-        throw new Error('DragonFly not found.');
+        throw new Error('DragonFly 1.0 not found.');
       }
       device.addEventListener('gattserverdisconnected', handleGattDisconnected);
     }
@@ -54,7 +54,7 @@ export const webBleTransport: BleTransport = {
       service = await server.getPrimaryService(SERVICE_UUID);
       characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
     } catch {
-      throw new Error('Could not connect to DragonFly.');
+      throw new Error('Could not connect to DragonFly 1.0.');
     }
 
     if (!notifying) {
@@ -65,7 +65,7 @@ export const webBleTransport: BleTransport = {
   },
 
   async sendCommand(command) {
-    if (!characteristic) throw new Error('Not connected to DragonFly.');
+    if (!characteristic) throw new Error('Not connected to DragonFly 1.0.');
     const bytes = new TextEncoder().encode(command);
     await characteristic.writeValue(bytes);
   },

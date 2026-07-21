@@ -75,11 +75,11 @@ export function useBleSession() {
     const expected = expectedCountRef.current;
 
     if (collected.length === 0) {
-      await finishWithError('No values were received from DragonFly.');
+      await finishWithError('No values were received from DragonFly 1.0.');
       return;
     }
     if (expected != null && collected.length !== expected) {
-      await finishWithError(`Expected ${expected} values from DragonFly but received ${collected.length}.`);
+      await finishWithError(`Expected ${expected} values from DragonFly 1.0 but received ${collected.length}.`);
       return;
     }
 
@@ -135,7 +135,7 @@ export function useBleSession() {
         return; // Never treat command echoes as numeric values.
       }
       if (!NUMERIC_PATTERN.test(text)) {
-        finishWithError(`Received an invalid value from DragonFly: "${text}".`);
+        finishWithError(`Received an invalid value from DragonFly 1.0: "${text}".`);
         return;
       }
 
@@ -153,7 +153,7 @@ export function useBleSession() {
   const handleDisconnect = useCallback(() => {
     setConnectionStatus('disconnected');
     if (collectingRef.current) {
-      finishWithError('DragonFly disconnected before the session finished.');
+      finishWithError('DragonFly 1.0 disconnected before the session finished.');
     }
   }, [finishWithError]);
 
@@ -177,7 +177,7 @@ export function useBleSession() {
       return true;
     } catch (e) {
       setConnectionStatus('disconnected');
-      const message = e instanceof Error ? e.message : 'Could not connect to DragonFly.';
+      const message = e instanceof Error ? e.message : 'Could not connect to DragonFly 1.0.';
       setConnectError(message);
       setConnecting(false);
       return false;
@@ -214,7 +214,7 @@ export function useBleSession() {
       setConnectionStatus('connected');
     } catch (e) {
       setConnectionStatus('disconnected');
-      const message = e instanceof Error ? e.message : 'Could not connect to DragonFly.';
+      const message = e instanceof Error ? e.message : 'Could not connect to DragonFly 1.0.';
       await finishWithError(message);
       return false;
     }
@@ -222,7 +222,7 @@ export function useBleSession() {
     try {
       await sendCommand(CMD_START);
     } catch {
-      await finishWithError('Failed to send the start command to DragonFly.');
+      await finishWithError('Failed to send the start command to DragonFly 1.0.');
       return false;
     }
 
@@ -240,7 +240,7 @@ export function useBleSession() {
       await sendCommand(CMD_STOP);
     } catch {
       setStopping(false);
-      setError('Failed to send the stop command to DragonFly.');
+      setError('Failed to send the stop command to DragonFly 1.0.');
       return;
     }
     stoppedAtRef.current = stoppedAt;
