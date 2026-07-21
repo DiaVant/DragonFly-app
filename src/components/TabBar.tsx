@@ -88,7 +88,7 @@ interface Props {
 }
 
 /**
- * Symmetrical bar: Home · Social | Fish On | Journey · Settings
+ * Symmetrical bar: Home · Club | Fish On | Journey · Settings
  * Fish On is a real flex center column (not a full-width overlay), so side tabs stay tappable.
  */
 export function TabBar({
@@ -130,7 +130,7 @@ export function TabBar({
             icon={<HomeIcon color={tab === 'home' ? ACTIVE : IDLE} />}
           />
           <TabItem
-            label="Social"
+            label="Club"
             active={tab === 'social'}
             onPress={onSocial}
             icon={<SocialIcon color={tab === 'social' ? ACTIVE : IDLE} />}

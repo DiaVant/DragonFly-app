@@ -30,6 +30,12 @@
         }
       ],
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow DragonFly to find nearby lakes for your fishing location."
+        }
+      ],
+      [
         "react-native-ble-plx",
         {
           "isBackgroundEnabled": false,

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Image,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -13,7 +14,8 @@ import { colors, fonts, radii } from '../theme';
 import type { Catch, FishingTrip } from '../types';
 import { fmtElapsed } from '../lib/format';
 import { type GearConfig } from '../lib/gear';
-import { buildCatchShareMessage, buildTripShareMessage, shareText, shareToFacebook } from '../lib/share';
+import { buildCatchShareMessage, buildTripShareMessage, shareText } from '../lib/share';
+import { resolveCatchImageSource } from '../lib/defaultPhotos';
 import {
   activityFromCatch,
   activityFromTrip,
@@ -44,6 +46,9 @@ export function SocialFeedScreen({ catches, trips, gear, onCreateTrip, onStartFi
   const [status, setStatus] = useState<string | null>(null);
   const [kudoed, setKudoed] = useState<Record<string, boolean>>({});
   const [extraKudos, setExtraKudos] = useState<Record<string, number>>({});
+  const [extraComments, setExtraComments] = useState<Record<string, number>>({});
+  const [commentTarget, setCommentTarget] = useState<SocialActivity | null>(null);
+  const [commentDraft, setCommentDraft] = useState('');
 
   const shareable = useMemo(
     () => catches.filter((c) => c.outcome !== 'lost' || (c.sampleCount ?? 0) > 0),
@@ -82,13 +87,60 @@ export function SocialFeedScreen({ catches, trips, gear, onCreateTrip, onStartFi
     const result = await shareText(buildCatchShareMessage(c, gear));
     setStatus(
       result === 'shared'
-        ? 'Shared'
+        ? 'Shared — pick Facebook, Messages, or another app'
         : result === 'copied'
-          ? 'Copied — paste anywhere'
+          ? 'Copied — paste into Facebook, Messages, or Instagram'
           : result === 'canceled'
             ? 'Canceled'
             : 'Couldn’t share'
     );
+  };
+
+  const shareActivity = async (item: SocialActivity) => {
+    if (item.catchId) {
+      const c = catches.find((x) => x.id === item.catchId);
+      if (c) {
+        await shareCatch(c);
+        return;
+      }
+    }
+    if (item.tripId) {
+      const t = trips.find((x) => x.id === item.tripId);
+      if (t) {
+        const result = await shareText(buildTripShareMessage(t, catches, gear));
+        setStatus(
+          result === 'shared'
+            ? 'Shared — pick Facebook, Messages, or another app'
+            : result === 'copied'
+              ? 'Copied — paste into Facebook or Messages'
+              : result === 'canceled'
+                ? 'Canceled'
+                : 'Couldn’t share'
+        );
+        return;
+      }
+    }
+    const result = await shareText(
+      `${item.title} — ${item.location} · ${fmtElapsed(item.fightSeconds)} · score ${item.score}`
+    );
+    setStatus(
+      result === 'shared'
+        ? 'Shared — pick Facebook, Messages, or another app'
+        : result === 'copied'
+          ? 'Copied — paste into Facebook or Messages'
+          : result === 'canceled'
+            ? 'Canceled'
+            : 'Couldn’t share'
+    );
+  };
+
+  const submitComment = () => {
+    if (!commentTarget || !commentDraft.trim()) return;
+    const id = commentTarget.id;
+    setExtraComments((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+    setCommentDraft('');
+    setCommentTarget(null);
+    setStatus('Comment posted');
   };
 
   const publishTrip = async () => {
@@ -277,35 +329,48 @@ export function SocialFeedScreen({ catches, trips, gear, onCreateTrip, onStartFi
             item={item}
             kudoed={Boolean(kudoed[item.id])}
             kudosCount={item.kudos + (extraKudos[item.id] ?? 0)}
+            commentCount={item.comments + (extraComments[item.id] ?? 0)}
             onKudos={() => toggleKudos(item.id)}
-            onShare={() => {
-              if (item.catchId) {
-                const c = catches.find((x) => x.id === item.catchId);
-                if (c) void shareCatch(c);
-                return;
-              }
-              if (item.tripId) {
-                const t = trips.find((x) => x.id === item.tripId);
-                if (t) void shareText(buildTripShareMessage(t, catches, gear));
-                return;
-              }
-              void shareText(
-                `${item.title} — ${item.location} · ${fmtElapsed(item.fightSeconds)} · score ${item.score}`
-              );
+            onComment={() => {
+              setCommentTarget(item);
+              setCommentDraft('');
             }}
-            onFacebook={() => {
-              if (item.catchId) {
-                const c = catches.find((x) => x.id === item.catchId);
-                if (c) void shareToFacebook(buildCatchShareMessage(c, gear));
-                return;
-              }
-              void shareToFacebook(
-                `${item.title} — ${item.location} · score ${item.score}`
-              );
-            }}
+            onShare={() => void shareActivity(item)}
           />
         ))
       )}
+
+      <Modal
+        visible={commentTarget != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCommentTarget(null)}
+      >
+        <Pressable style={styles.commentBackdrop} onPress={() => setCommentTarget(null)}>
+          <Pressable style={styles.commentSheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.commentTitle}>Comment</Text>
+            <Text style={styles.commentSub} numberOfLines={1}>
+              {commentTarget?.title}
+            </Text>
+            <TextInput
+              value={commentDraft}
+              onChangeText={setCommentDraft}
+              style={[styles.input, styles.inputMulti]}
+              placeholder="Nice fight — keep that drag smooth"
+              placeholderTextColor={colors.missing}
+              multiline
+              autoFocus
+            />
+            <PrimaryButton
+              label="Post comment"
+              onPress={submitComment}
+              disabled={!commentDraft.trim()}
+              style={styles.cta}
+            />
+            <SecondaryButton label="Cancel" onPress={() => setCommentTarget(null)} />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Screen>
   );
 }
@@ -325,18 +390,21 @@ function ActivityCard({
   item,
   kudoed,
   kudosCount,
+  commentCount,
   onKudos,
+  onComment,
   onShare,
-  onFacebook,
 }: {
   item: SocialActivity;
   kudoed: boolean;
   kudosCount: number;
+  commentCount: number;
   onKudos: () => void;
+  onComment: () => void;
   onShare: () => void;
-  onFacebook: () => void;
 }) {
   const athlete = item.athlete ?? YOU;
+  const photo = resolveCatchImageSource(item.imageUri);
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
@@ -354,8 +422,16 @@ function ActivityCard({
       <Text style={styles.activityTitle}>{item.title}</Text>
       {item.caption ? <Text style={styles.caption}>{item.caption}</Text> : null}
 
-      {item.imageUri ? (
-        <Image source={{ uri: item.imageUri }} style={styles.hero} resizeMode="cover" />
+      {photo ? (
+        <View style={styles.heroWrap}>
+          <Image source={photo} style={styles.hero} resizeMode="cover" />
+          <LinearGradient
+            colors={['transparent', 'rgba(15,28,42,0.72)']}
+            style={styles.heroFade}
+          >
+            <Text style={styles.mapPlace}>{item.location}</Text>
+          </LinearGradient>
+        </View>
       ) : (
         <LinearGradient
           colors={heroColors(item.kind)}
@@ -363,7 +439,6 @@ function ActivityCard({
           end={{ x: 1, y: 1 }}
           style={styles.heroMap}
         >
-          <View style={styles.mapGrid} />
           <Text style={styles.mapPlace}>{item.location}</Text>
           <Text style={styles.mapKind}>
             {item.kind === 'trip' ? 'Outing route' : item.kind === 'session' ? 'Session' : 'Fight path'}
@@ -393,7 +468,7 @@ function ActivityCard({
       <View style={styles.kudosRow}>
         <Text style={styles.kudosCount}>
           {kudosCount > 0 ? `${kudosCount} kudos` : 'Be the first to give kudos'}
-          {item.comments > 0 ? ` · ${item.comments} comments` : ''}
+          {commentCount > 0 ? ` · ${commentCount} comments` : ''}
         </Text>
       </View>
 
@@ -407,13 +482,18 @@ function ActivityCard({
           <Text style={[styles.actionIcon, kudoed && styles.actionIconOn]}>{kudoed ? '♥' : '♡'}</Text>
           <Text style={[styles.actionLabel, kudoed && styles.actionLabelOn]}>Kudos</Text>
         </Pressable>
-        <Pressable onPress={onShare} style={styles.action} accessibilityRole="button">
+        <Pressable onPress={onComment} style={styles.action} accessibilityRole="button">
+          <Text style={styles.actionIcon}>◎</Text>
+          <Text style={styles.actionLabel}>Comment</Text>
+        </Pressable>
+        <Pressable
+          onPress={onShare}
+          style={styles.action}
+          accessibilityRole="button"
+          accessibilityHint="Share to Facebook, Messages, or other apps"
+        >
           <Text style={styles.actionIcon}>↗</Text>
           <Text style={styles.actionLabel}>Share</Text>
-        </Pressable>
-        <Pressable onPress={onFacebook} style={styles.action} accessibilityRole="button">
-          <Text style={styles.actionIcon}>f</Text>
-          <Text style={styles.actionLabel}>Facebook</Text>
         </Pressable>
       </View>
     </View>
@@ -639,8 +719,19 @@ const styles = StyleSheet.create({
   },
   hero: {
     width: '100%',
-    height: 200,
+    height: 220,
+  },
+  heroWrap: {
+    width: '100%',
+    height: 220,
     marginBottom: 12,
+    backgroundColor: colors.navy,
+    overflow: 'hidden',
+  },
+  heroFade: {
+    ...StyleSheet.absoluteFill,
+    justifyContent: 'flex-end',
+    padding: 14,
   },
   heroMap: {
     width: '100%',
@@ -649,10 +740,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     padding: 16,
     overflow: 'hidden',
-  },
-  mapGrid: {
-    ...StyleSheet.absoluteFill,
-    opacity: 0.12,
   },
   mapPlace: {
     fontFamily: fonts.displaySemiBold,
@@ -783,4 +870,29 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   cta: { marginTop: 16, marginBottom: 10 },
+  commentBackdrop: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: 'flex-end',
+  },
+  commentSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 28,
+  },
+  commentTitle: {
+    fontFamily: fonts.displaySemiBold,
+    fontSize: 20,
+    color: colors.navy,
+  },
+  commentSub: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 13,
+    color: colors.textMuted,
+    marginTop: 4,
+    marginBottom: 12,
+  },
 });

@@ -1,4 +1,5 @@
 import type { Catch, FishingTrip } from '../types';
+import { catchPhotoUri } from './defaultPhotos';
 
 export type FeedTab = 'following' | 'club' | 'you';
 
@@ -42,7 +43,7 @@ export const YOU: SocialAthlete = {
   accent: '#B87444',
 };
 
-/** Seeded club anglers — makes Social feel like a live network. */
+/** Seeded club anglers — makes Club feel like a live network. */
 export const CLUB_ATHLETES: SocialAthlete[] = [
   { id: 'maya', name: 'Maya Chen', handle: '@mayafish', initials: 'MC', accent: '#4B6A88' },
   { id: 'jordan', name: 'Jordan Hale', handle: '@jhale', initials: 'JH', accent: '#8FA89A' },
@@ -63,7 +64,8 @@ export const CLUB_FEED: SocialActivity[] = [
     fightSeconds: 214,
     score: 86,
     species: 'Largemouth bass',
-    caption: 'Kiddo kept the drag steady after the second run. Proud coach moment.',
+    caption: 'Kiddo kept the drag steady after the second run.',
+    imageUri: catchPhotoUri('bass'),
     kudos: 24,
     comments: 6,
     community: true,
@@ -81,6 +83,7 @@ export const CLUB_FEED: SocialActivity[] = [
     score: 78,
     fights: 4,
     caption: 'Fog lifted around 8. Everyone landed at least one.',
+    imageUri: catchPhotoUri('trout'),
     kudos: 41,
     comments: 11,
     community: true,
@@ -96,7 +99,8 @@ export const CLUB_FEED: SocialActivity[] = [
     at: '2099-01-02T18:00:00Z',
     fightSeconds: 360,
     score: 71,
-    caption: 'No keepers — plenty of coaching reps. That’s the point.',
+    caption: 'No keepers — plenty of coaching reps.',
+    imageUri: catchPhotoUri('cutthroat'),
     kudos: 18,
     comments: 4,
     community: true,
@@ -114,6 +118,7 @@ export const CLUB_FEED: SocialActivity[] = [
     score: 91,
     species: 'Bluegill',
     caption: 'She set the hook herself. DragonFly kept the line honest.',
+    imageUri: catchPhotoUri('bass'),
     kudos: 67,
     comments: 19,
     community: true,
@@ -153,6 +158,7 @@ export function activityFromTrip(trip: FishingTrip, catches: Catch[]): SocialAct
     .filter(Boolean) as Catch[];
   const total = members.reduce((s, c) => s + c.fightSeconds, 0);
   const best = members.reduce((m, c) => Math.max(m, c.score), 0);
+  const photo = members.find((c) => c.imageUri)?.imageUri;
   return {
     id: `trip-${trip.id}`,
     athlete: YOU,
@@ -166,6 +172,7 @@ export function activityFromTrip(trip: FishingTrip, catches: Catch[]): SocialAct
     score: best || Math.round(members.reduce((s, c) => s + c.score, 0) / Math.max(members.length, 1)),
     fights: members.length,
     caption: trip.caption,
+    imageUri: photo,
     kudos: 0,
     comments: 0,
     tripId: trip.id,
@@ -173,7 +180,6 @@ export function activityFromTrip(trip: FishingTrip, catches: Catch[]): SocialAct
 }
 
 function relativeFromDateTime(date: string, time: string): string {
-  // Local catch dates are display strings — keep friendly, not exact.
   if (!date) return 'Recently';
   if (/today/i.test(date)) return time ? `Today · ${time}` : 'Today';
   return time ? `${date} · ${time}` : date;

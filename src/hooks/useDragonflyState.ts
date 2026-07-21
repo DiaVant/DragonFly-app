@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Catch, CatchForm, FightOutcome, FishingTrip, Phase, Route, Tab } from '../types';
 import { fmtDate, fmtTime } from '../lib/format';
 import {
-  DEFAULT_LOCATION,
   computeJourneySummary,
   loadCatches,
   loadGear,
@@ -20,9 +19,10 @@ import { createFightSimulator } from '../sim/fightSimulator';
 import { isOpenAiConfigured } from '../ai/openaiConfig';
 import { reviewFightWithOpenAI } from '../ai/fightReview';
 import { gearSummary, type GearConfig } from '../lib/gear';
+import { DEFAULT_LOCATION, LOCATION_NAMES } from '../lib/locations';
 import { useBleSession } from './useBleSession';
 
-export const LOCATIONS = ['Lake Sammamish', 'Lake Washington', 'Snoqualmie River', 'Green Lake', 'Lake Union'];
+export const LOCATIONS = LOCATION_NAMES;
 
 export type AiReviewStatus = 'idle' | 'loading' | 'ready' | 'fallback' | 'error';
 

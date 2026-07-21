@@ -2,13 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Catch, FishingTrip } from '../types';
 import type { GearConfig } from './gear';
 import { catchPhotoUri, defaultPhotoForCatch } from './defaultPhotos';
+import { DEFAULT_LOCATION as FALLBACK_LOCATION } from './locations';
 
 const CATCHES_KEY = 'dragonfly.catches';
 const LOCATION_KEY = 'dragonfly.location';
 const GEAR_KEY = 'dragonfly.gear';
 const TRIPS_KEY = 'dragonfly.trips';
 
-export const DEFAULT_LOCATION = 'Lake Sammamish';
+export const DEFAULT_LOCATION = FALLBACK_LOCATION;
 
 export function seedCatches(): Catch[] {
   return [

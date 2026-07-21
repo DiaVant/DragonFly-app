@@ -154,9 +154,24 @@ export const FIXTURE_CATCHES: Catch[] = [
 export const FIXTURE_LOCATIONS = [
   'Lake Sammamish',
   'Lake Washington',
-  'Snoqualmie River',
-  'Green Lake',
   'Lake Union',
+  'Green Lake',
+  'Snoqualmie River',
+  'Lake Stevens',
+  'Lake Whatcom',
+  'Lake Chelan',
+  'American Lake',
+  'Puget Sound — Edmonds',
+  'Columbia River — Portland',
+  'Willamette River',
+  'Crater Lake',
+  'Lake Tahoe',
+  'Clear Lake',
+  'Lake Murray',
+  'Santee Cooper',
+  'Cooper River',
+  'Lake Erie — Cleveland',
+  'Lake Michigan — Chicago',
 ];
 
 export const FIXTURE_FORM: CatchForm = {
