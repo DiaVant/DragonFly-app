@@ -1,4 +1,4 @@
-# DragonFly
+# DragonFly 1.0
 
 DragonFly is an M&TSI product: a compact smart fishing-rod attachment that monitors the fish fight and helps beginners manage drag and line tension. The app helps experienced anglers confidently introduce children, family, and friends to fishing.
 

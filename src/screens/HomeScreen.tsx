@@ -43,7 +43,7 @@ export function HomeScreen({
 
   return (
     <Screen scroll>
-      <AppHeader title="DragonFly" subtitle={greeting} hero showMark />
+      <AppHeader title="DragonFly 1.0" subtitle={greeting} hero showMark />
 
       <DeviceStatus
         status={connectionStatus}

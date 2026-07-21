@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "DragonFly-app",
-    "slug": "DragonFly-app",
+    "name": "DragonFly",
+    "slug": "DragonFly",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
