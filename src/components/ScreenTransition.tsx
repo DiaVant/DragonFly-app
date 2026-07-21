@@ -5,13 +5,20 @@ import { motion } from '../theme';
 interface Props {
   screenKey: string;
   children: React.ReactNode;
+  /** Skip fade/slide — used under the Fish On expand burst. */
+  instant?: boolean;
 }
 
-export function ScreenTransition({ screenKey, children }: Props) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(8)).current;
+export function ScreenTransition({ screenKey, children, instant }: Props) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    if (instant) {
+      opacity.setValue(1);
+      translateY.setValue(0);
+      return;
+    }
     opacity.setValue(0);
     translateY.setValue(8);
     Animated.parallel([

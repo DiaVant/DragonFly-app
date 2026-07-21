@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from './theme';
 import { useDragonflyState } from './hooks/useDragonflyState';
 import { ScreenTransition } from './components/ScreenTransition';
 import { TabBar } from './components/TabBar';
+import { FishOnExpand, type FishOnOrigin } from './components/FishOnExpand';
 import { LocationSheet } from './components/LocationSheet';
 import { HomeScreen } from './screens/HomeScreen';
 import { FishingReadyScreen } from './screens/FishingReadyScreen';
@@ -20,6 +21,29 @@ import { ErrorState } from './ui';
 export function DragonflyApp() {
   const state = useDragonflyState();
   const { route, actions } = state;
+  const [fishBurst, setFishBurst] = useState<FishOnOrigin | null>(null);
+  const skipTransitionRef = useRef(false);
+  const fishActionPending = useRef(false);
+
+  const handleFishOnPress = useCallback((origin: FishOnOrigin) => {
+    if (fishActionPending.current || state.phase === 'active') return;
+    fishActionPending.current = true;
+    skipTransitionRef.current = true;
+    setFishBurst(origin);
+  }, [state.phase]);
+
+  const handleFishCovered = useCallback(() => {
+    actions.onFishOn();
+  }, [actions]);
+
+  const handleFishFinished = useCallback(() => {
+    setFishBurst(null);
+    fishActionPending.current = false;
+    // Allow the next normal navigation to animate again.
+    requestAnimationFrame(() => {
+      skipTransitionRef.current = false;
+    });
+  }, []);
 
   if (!state.hydrated) {
     return (
@@ -177,40 +201,50 @@ export function DragonflyApp() {
 
   const screenKey = `${route}|${state.detailView ?? ''}`;
   const hideTab = route === 'active' || route === 'score' || route === 'lost' || route === 'details';
+  const bursting = fishBurst != null;
 
   return (
-    <SafeAreaView style={[styles.root, hideTab && styles.rootDark]} edges={['top', 'left', 'right']}>
-      <View style={styles.content}>
-        <ScreenTransition screenKey={screenKey}>{content}</ScreenTransition>
-      </View>
-      {!hideTab ? (
-        <TabBar
-          tab={state.tab}
-          onHome={actions.goHome}
-          onJourney={actions.goJourney}
-          onFishOn={actions.onFishOn}
-          fishOnActive={state.phase === 'active'}
-          fishOnLabel={
-            state.tab === 'fishing' && state.phase === 'ready'
-              ? state.ble.connectionStatus === 'connected'
-                ? 'Fish On — start fight'
-                : 'Fish On — start live simulation'
-              : 'Go fishing'
-          }
+    <View style={styles.shell}>
+      <SafeAreaView style={[styles.root, hideTab && styles.rootDark]} edges={['top', 'left', 'right']}>
+        <View style={styles.content}>
+          <ScreenTransition screenKey={screenKey} instant={skipTransitionRef.current || bursting}>
+            {content}
+          </ScreenTransition>
+        </View>
+        {!hideTab ? (
+          <TabBar
+            tab={state.tab}
+            onHome={actions.goHome}
+            onJourney={actions.goJourney}
+            onFishOn={handleFishOnPress}
+            fishOnHidden={bursting}
+            fishOnActive={state.phase === 'active'}
+            fishOnLabel={
+              state.tab === 'fishing' && state.phase === 'ready'
+                ? state.ble.connectionStatus === 'connected'
+                  ? 'Fish On — start fight'
+                  : 'Fish On — start live simulation'
+                : 'Go fishing'
+            }
+          />
+        ) : null}
+        <LocationSheet
+          visible={state.locOpen}
+          locations={state.locations}
+          current={state.location}
+          onSelect={actions.setLoc}
+          onClose={actions.closeLoc}
         />
-      ) : null}
-      <LocationSheet
-        visible={state.locOpen}
-        locations={state.locations}
-        current={state.location}
-        onSelect={actions.setLoc}
-        onClose={actions.closeLoc}
-      />
-    </SafeAreaView>
+      </SafeAreaView>
+      <FishOnExpand origin={fishBurst} onCovered={handleFishCovered} onFinished={handleFishFinished} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  shell: {
+    flex: 1,
+  },
   root: {
     flex: 1,
     backgroundColor: colors.dawnMid,

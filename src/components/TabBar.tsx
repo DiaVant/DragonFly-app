@@ -1,13 +1,17 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fonts, shadows, touchTarget } from '../theme';
 import type { Tab } from '../types';
+import type { FishOnOrigin } from './FishOnExpand';
 
 const ACTIVE = colors.copper;
 const IDLE = colors.textMuted;
+
+/** Nike-scale center CTA — sits proud of the tab bar. */
+const FISH_SIZE = 88;
 
 function HomeIcon({ color }: { color: string }) {
   return (
@@ -39,11 +43,14 @@ interface Props {
   tab: Tab;
   onHome: () => void;
   onJourney: () => void;
-  onFishOn: () => void;
+  /** Called with the Fish On button’s window rect so the expand burst can start from it. */
+  onFishOn: (origin: FishOnOrigin) => void;
   fishOnLabel?: string;
   fishOnDisabled?: boolean;
   fishOnActive?: boolean;
   hideCenter?: boolean;
+  /** Hide the real button while the expand overlay is playing. */
+  fishOnHidden?: boolean;
 }
 
 export function TabBar({
@@ -55,8 +62,22 @@ export function TabBar({
   fishOnDisabled,
   fishOnActive,
   hideCenter,
+  fishOnHidden,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const btnRef = useRef<View>(null);
+
+  const handleFishOn = () => {
+    if (fishOnDisabled) return;
+    btnRef.current?.measureInWindow((x, y, width, height) => {
+      const size = Math.max(width, height);
+      onFishOn({
+        x: x + (width - size) / 2,
+        y: y + (height - size) / 2,
+        size,
+      });
+    });
+  };
 
   return (
     <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 10) }]}>
@@ -70,28 +91,37 @@ export function TabBar({
 
         <View style={styles.centerSlot}>
           {!hideCenter ? (
-            <Pressable
-              onPress={onFishOn}
-              disabled={fishOnDisabled}
-              style={[styles.fishOnOuter, fishOnDisabled && styles.fishOnDisabled]}
-              accessibilityRole="button"
-              accessibilityLabel={fishOnLabel}
-              accessibilityHint="Go to fishing or start a fight"
+            <View
+              ref={btnRef}
+              collapsable={false}
+              style={[
+                styles.fishOnOuter,
+                fishOnDisabled && styles.fishOnDisabled,
+                fishOnHidden && styles.fishOnInvisible,
+              ]}
             >
-              <LinearGradient
-                colors={
-                  fishOnActive
-                    ? [colors.lakeSoft, colors.lake]
-                    : [colors.copperSoft, colors.copper, colors.copperDark]
-                }
-                start={{ x: 0.2, y: 0 }}
-                end={{ x: 0.8, y: 1 }}
-                style={styles.fishOn}
+              <Pressable
+                onPress={handleFishOn}
+                disabled={fishOnDisabled || fishOnHidden}
+                accessibilityRole="button"
+                accessibilityLabel={fishOnLabel}
+                accessibilityHint="Go to fishing or start a fight"
               >
-                <Text style={styles.fishOnTitle}>{fishOnActive ? 'Live' : 'Fish'}</Text>
-                <Text style={styles.fishOnSub}>{fishOnActive ? 'Fight' : 'On'}</Text>
-              </LinearGradient>
-            </Pressable>
+                <LinearGradient
+                  colors={
+                    fishOnActive
+                      ? [colors.lakeSoft, colors.lake]
+                      : [colors.copperSoft, colors.copper, colors.copperDark]
+                  }
+                  start={{ x: 0.2, y: 0 }}
+                  end={{ x: 0.8, y: 1 }}
+                  style={styles.fishOn}
+                >
+                  <Text style={styles.fishOnTitle}>{fishOnActive ? 'Live' : 'Fish'}</Text>
+                  <Text style={styles.fishOnSub}>{fishOnActive ? 'Fight' : 'On'}</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
           ) : (
             <View style={styles.centerPlaceholder} />
           )}
@@ -133,8 +163,6 @@ function TabItem({
   );
 }
 
-const FISH_SIZE = 68;
-
 const styles = StyleSheet.create({
   wrap: {
     backgroundColor: 'rgba(247,249,250,0.92)',
@@ -147,9 +175,9 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingTop: 10,
+    paddingTop: 14,
     paddingHorizontal: 12,
-    minHeight: 58,
+    minHeight: 62,
   },
   item: {
     flex: 1,
@@ -165,10 +193,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   centerSlot: {
-    width: FISH_SIZE + 16,
+    width: FISH_SIZE + 20,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    marginTop: -32,
+    marginTop: -40,
   },
   centerPlaceholder: {
     width: FISH_SIZE,
@@ -184,22 +212,25 @@ const styles = StyleSheet.create({
     borderRadius: FISH_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 4,
+    borderWidth: 5,
     borderColor: colors.mist,
   },
   fishOnDisabled: {
     opacity: 0.45,
   },
+  fishOnInvisible: {
+    opacity: 0,
+  },
   fishOnTitle: {
     fontFamily: fonts.displaySemiBold,
-    fontSize: 13,
+    fontSize: 16,
     color: colors.textOnAccent,
-    lineHeight: 15,
+    lineHeight: 18,
   },
   fishOnSub: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.9)',
-    lineHeight: 13,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.92)',
+    lineHeight: 15,
   },
 });
