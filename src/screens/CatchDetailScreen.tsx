@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
+import Svg, { Line } from 'react-native-svg';
 import { Screen, PrimaryButton, SecondaryButton, Card, Metric, TensionChart, IconButton } from '../ui';
 import { colors, fonts, radii } from '../theme';
 import { CatchPhoto } from '../components/CatchPhoto';
@@ -35,7 +36,10 @@ export function CatchDetailScreen({ item, onClose, onEdit, onDelete }: Props) {
       <View style={styles.hero}>
         <CatchPhoto item={item} emptyLabel="Photo not added" showMark markSize={46} />
         <IconButton onPress={onClose} accessibilityLabel="Close" style={styles.back}>
-          <Text style={styles.backIcon}>‹</Text>
+          <Svg width={16} height={16} viewBox="0 0 16 16">
+            <Line x1={1.5} y1={1.5} x2={14.5} y2={14.5} stroke={colors.navy} strokeWidth={2} strokeLinecap="round" />
+            <Line x1={14.5} y1={1.5} x2={1.5} y2={14.5} stroke={colors.navy} strokeWidth={2} strokeLinecap="round" />
+          </Svg>
         </IconButton>
       </View>
 
@@ -122,7 +126,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.navy,
   },
   back: { position: 'absolute', top: 14, left: 14 },
-  backIcon: { fontSize: 28, color: colors.textOnDark, marginTop: -2 },
   body: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 28 },
   headerRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   headerLeft: { flex: 1, minWidth: 0 },

@@ -55,7 +55,7 @@ export function JourneyGalleryScreen({ catches, onOpen, onStartFishing }: Props)
         ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
         ListHeaderComponent={
           <View style={styles.header}>
-            <AppHeader title="Journey" subtitle="Catches from the water" />
+            <AppHeader title="Ethan's Journey" showMark={false} />
             <View style={styles.metrics}>
               <Metric label="Catches" value={String(stats.total)} mono />
               <Metric label="Average" value={stats.avgScore != null ? String(stats.avgScore) : '—'} emphasize />
