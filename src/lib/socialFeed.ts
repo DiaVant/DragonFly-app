@@ -25,6 +25,8 @@ export interface SocialActivity {
   score: number;
   fights?: number;
   species?: string;
+  size?: string;
+  weight?: string;
   caption?: string;
   imageUri?: string;
   /** Multiple photos for trip/session carousels (Strava-style). */
@@ -66,6 +68,8 @@ export const CLUB_FEED: SocialActivity[] = [
     fightSeconds: 214,
     score: 86,
     species: 'Largemouth bass',
+    size: '18.4',
+    weight: '4.1',
     caption: 'Kiddo kept the drag steady after the second run.',
     imageUri: catchPhotoUri('bass'),
     imageUris: [catchPhotoUri('bass')],
@@ -122,6 +126,8 @@ export const CLUB_FEED: SocialActivity[] = [
     fightSeconds: 156,
     score: 91,
     species: 'Bluegill',
+    size: '9.2',
+    weight: '0.8',
     caption: 'She set the hook herself. DragonFly kept the line honest.',
     imageUri: catchPhotoUri('bass'),
     imageUris: [catchPhotoUri('bass')],
@@ -151,6 +157,8 @@ export function activityFromCatch(c: Catch): SocialActivity {
     fightSeconds: c.fightSeconds,
     score: c.score,
     species: c.species || undefined,
+    size: c.size || undefined,
+    weight: c.weight || undefined,
     imageUri: c.imageUri,
     kudos: 0,
     comments: 0,

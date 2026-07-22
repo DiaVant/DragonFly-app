@@ -46,6 +46,7 @@ export function LocationBadge({ location }: { location: string }) {
 const styles = StyleSheet.create({
   bar: {
     alignSelf: 'stretch',
+    marginHorizontal: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,

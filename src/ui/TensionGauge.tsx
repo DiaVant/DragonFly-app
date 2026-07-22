@@ -12,6 +12,8 @@ interface Props {
   dark?: boolean;
   /** Diameter in px. Default 148; use ~108 on phones. */
   size?: number;
+  /** Arc + value color. Defaults to copper. */
+  accent?: 'copper' | 'slateBlue';
 }
 
 export function TensionGauge({
@@ -20,6 +22,7 @@ export function TensionGauge({
   label = 'Relative tension',
   dark,
   size = 148,
+  accent = 'copper',
 }: Props) {
   const progress = useMemo(() => {
     if (value == null) return 0;
@@ -35,8 +38,9 @@ export function TensionGauge({
   const strokeDashoffset = arcLen * (1 - progress);
 
   const display = value == null ? '—' : value.toFixed(0);
-  const track = dark ? 'rgba(255,255,255,0.12)' : 'rgba(184,116,68,0.16)';
-  const fg = dark ? colors.copperSoft : colors.copper;
+  const accentTrack = accent === 'slateBlue' ? 'rgba(75,106,136,0.16)' : 'rgba(184,116,68,0.16)';
+  const track = dark ? 'rgba(255,255,255,0.12)' : accentTrack;
+  const fg = dark ? colors.copperSoft : accent === 'slateBlue' ? colors.slateBlue : colors.copper;
   const textColor = dark ? colors.textOnDark : colors.navy;
   const muted = dark ? colors.textOnDarkSecondary : colors.slateBlue;
   const cx = size / 2;
@@ -46,6 +50,7 @@ export function TensionGauge({
 
   return (
     <View style={styles.wrap} accessibilityLabel={`${label}: ${display}`}>
+      {showLabel ? <Text style={[styles.label, { color: muted }]}>{label}</Text> : null}
       <View style={{ width: size, height: size }}>
         <Svg width={size} height={size}>
           <G transform={`rotate(135 ${cx} ${cy})`}>
@@ -76,10 +81,9 @@ export function TensionGauge({
           <Text style={[styles.value, { color: textColor, fontSize: valueSize, lineHeight: valueSize + 4 }]}>
             {display}
           </Text>
-          <Text style={[styles.indexLabel, { color: muted }]}>index</Text>
+          <Text style={[styles.indexLabel, { color: muted }]}>newtons</Text>
         </View>
       </View>
-      {showLabel ? <Text style={[styles.label, { color: muted }]}>{label}</Text> : null}
     </View>
   );
 }
@@ -103,5 +107,6 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: fonts.bodyMedium,
     fontSize: 11,
+    marginBottom: 8,
   },
 });

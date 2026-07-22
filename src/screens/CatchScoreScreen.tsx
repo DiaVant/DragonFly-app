@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Screen, PrimaryButton, SecondaryButton, Metric, TensionChart, StatusChip } from '../ui';
+import { Screen, PrimaryButton, SecondaryButton, Metric, TensionChart } from '../ui';
+import { ScoreWings } from '../components/ScoreWings';
 import { colors, fonts, motion, radii, shadows } from '../theme';
 import type { Catch } from '../types';
 import type { AiReviewStatus } from '../hooks/useDragonflyState';
@@ -44,40 +44,23 @@ export function CatchScoreScreen({
     catchItem?.controlIndex != null &&
     catchItem?.recoveryIndex != null;
 
-  const chipLabel = reviewing
-    ? 'Scoring…'
-    : catchItem?.scoreSource === 'openai'
-      ? 'Coach score'
-      : 'Catch scored';
-
-  const scoreHint = reviewing
-    ? 'Reading your tension samples'
-    : catchItem?.scoreSource === 'openai'
-      ? catchItem.scoreRationale || 'Control score from this fight'
-      : aiReviewStatus === 'error'
-        ? 'AI unavailable — sensor average'
-        : 'Averaged from DragonFly 1.0 samples';
-
   return (
     <Screen scroll>
       <View style={styles.hero}>
-        <LinearGradient
-          colors={['#1A3348', '#0F1C2A', '#152536']}
-          start={{ x: 0.2, y: 0 }}
-          end={{ x: 0.9, y: 1 }}
-          style={styles.heroGradient}
-        >
-          <StatusChip label={chipLabel} tone="ok" />
-          <Text style={styles.eyebrow}>Catch score</Text>
-          {reviewing || !scoreReady ? (
-            <Text style={styles.scorePending}>···</Text>
-          ) : (
-            <Animated.View style={{ opacity: scoreOpacity, transform: [{ scale: scoreScale }] }}>
-              <Text style={styles.score}>{scoreDisplay}</Text>
-            </Animated.View>
-          )}
-          <Text style={styles.scoreHint}>{scoreHint}</Text>
-        </LinearGradient>
+        <View style={styles.heroSurface}>
+          <View style={styles.scoreCluster}>
+            <View style={styles.wingsWrap} pointerEvents="none">
+              <ScoreWings size={260} />
+            </View>
+            {reviewing || !scoreReady ? (
+              <Text style={styles.scorePending}>···</Text>
+            ) : (
+              <Animated.View style={{ opacity: scoreOpacity, transform: [{ scale: scoreScale }], alignItems: 'center' }}>
+                <Text style={styles.score}>{scoreDisplay}</Text>
+              </Animated.View>
+            )}
+          </View>
+        </View>
       </View>
 
       <View style={styles.metrics}>
@@ -113,7 +96,7 @@ export function CatchScoreScreen({
             </View>
             {series.length > 1 ? (
               <View style={styles.chart}>
-                <TensionChart samples={series} label="Tension" />
+                <TensionChart samples={series} label="Tension" caption="" />
               </View>
             ) : null}
           </>
@@ -122,12 +105,10 @@ export function CatchScoreScreen({
         )}
         {hasAiMetrics && series.length > 1 ? (
           <View style={styles.chart}>
-            <TensionChart samples={series} label="Tension" />
+            <TensionChart samples={series} label="Tension" caption="" />
           </View>
         ) : null}
       </View>
-
-      <Text style={styles.journeyHint}>You’ll save this catch to Journey next.</Text>
 
       <PrimaryButton label="Add catch details" onPress={onAddDetails} style={styles.primary} />
       <SecondaryButton label="Save to Journey" onPress={onSkip} />
@@ -156,43 +137,48 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginTop: 8,
     marginBottom: 22,
+    borderWidth: 1,
+    borderColor: colors.border,
     ...shadows.brand,
   },
-  heroGradient: {
+  heroSurface: {
+    backgroundColor: colors.surface,
+    minHeight: 340,
     alignItems: 'center',
-    paddingVertical: 32,
+    justifyContent: 'center',
+    paddingVertical: 28,
     paddingHorizontal: 20,
-    gap: 8,
   },
-  eyebrow: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 11,
-    color: colors.copperSoft,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    marginTop: 8,
+  scoreCluster: {
+    width: 260,
+    height: 260,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wingsWrap: {
+    position: 'absolute',
   },
   score: {
     fontFamily: fonts.displayBold,
-    fontSize: 96,
-    lineHeight: 100,
-    color: colors.copperSoft,
+    fontSize: 88,
+    lineHeight: 92,
+    color: colors.navy,
     letterSpacing: -2,
+  },
+  scoreLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    color: colors.copper,
+    marginTop: 8,
   },
   scorePending: {
     fontFamily: fonts.displayBold,
     fontSize: 72,
     lineHeight: 80,
-    color: 'rgba(212,160,122,0.55)',
+    color: colors.textMuted,
     letterSpacing: 4,
-  },
-  scoreHint: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textOnDarkSecondary,
-    textAlign: 'center',
-    maxWidth: 280,
   },
   metrics: {
     flexDirection: 'row',

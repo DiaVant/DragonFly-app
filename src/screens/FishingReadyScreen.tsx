@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
-import { Screen, PrimaryButton, StatusChip, DeviceStatus } from '../ui';
+import { Screen, PrimaryButton, DeviceStatus } from '../ui';
 import { colors, fonts, radii, touchTarget } from '../theme';
 import { AnimatedDragonflyStage } from '../components/AnimatedDragonflyStage';
 import { LocationPill } from '../components/PillBadge';
@@ -50,22 +50,9 @@ export function FishingReadyScreen({
     });
   };
 
-  const statusLabel = connected
-    ? `${HARDWARE_NAME} ready`
-    : busy
-      ? 'Connecting…'
-      : error
-        ? 'Sensor needs attention'
-        : `Connect ${HARDWARE_NAME}`;
-  const statusTone = connected ? 'ok' : busy ? 'caution' : error ? 'alert' : 'neutral';
-
   return (
     <Screen scroll contentStyle={styles.screenContent}>
       <LocationPill location={location} onPress={onOpenLocation} />
-
-      <View style={styles.statusRow}>
-        <StatusChip label={statusLabel} tone={statusTone} />
-      </View>
 
       <Pressable
         onPress={() => measureAnd('mark', onFishOn)}
@@ -81,9 +68,8 @@ export function FishingReadyScreen({
 
       <Text style={styles.headline}>Fish On</Text>
       <Text style={styles.subhead}>
-        Tap the dragonfly or Fish On when the fish takes. {HARDWARE_NAME} coaches pressure in real time.
+        Tap dragonfly or START when the fish bites. 
       </Text>
-      <Text style={styles.footnote}>Relative tension — not calibrated pounds.</Text>
 
       {!connected ? (
         <View style={styles.deviceWrap}>
@@ -114,7 +100,7 @@ export function FishingReadyScreen({
         {connected ? (
           <View ref={ctaRef} collapsable={false}>
             <PrimaryButton
-              label={busy ? 'Starting…' : 'Fish On'}
+              label={busy ? 'Starting…' : 'START'}
               onPress={() => measureAnd('cta', onFishOn)}
               loading={busy}
               disabled={busy}
@@ -144,18 +130,15 @@ export function FishingReadyScreen({
 
 const styles = StyleSheet.create({
   screenContent: {
+    paddingTop: 20,
     paddingBottom: 12,
-  },
-  statusRow: {
-    alignItems: 'center',
-    marginTop: 14,
-    marginBottom: 4,
   },
   stage: {
     alignSelf: 'center',
     width: 240,
     height: 240,
-    marginVertical: 4,
+    marginTop: 18,
+    marginBottom: 4,
   },
   stageHit: {
     flex: 1,
@@ -175,16 +158,8 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 10,
+    marginBottom: 24,
     marginHorizontal: 8,
-  },
-  footnote: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 12,
-    lineHeight: 17,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 16,
   },
   deviceWrap: { marginBottom: 8 },
   gearRow: {

@@ -71,7 +71,7 @@ export function TensionChart({
           {tip ? <Circle cx={tip.x} cy={tip.y} r={live ? 3.5 : 3} fill={stroke} /> : null}
         </Svg>
       )}
-      <Text style={[styles.caption, { color: muted }]}>{captionText}</Text>
+      {captionText ? <Text style={[styles.caption, { color: muted }]}>{captionText}</Text> : null}
     </View>
   );
 }

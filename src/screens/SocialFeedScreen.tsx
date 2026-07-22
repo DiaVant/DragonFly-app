@@ -433,7 +433,7 @@ function WeekStat({ label, value, mono }: { label: string; value: string; mono?:
   );
 }
 
-function PhotoCarousel({ uris, location }: { uris: string[]; location: string }) {
+function PhotoCarousel({ uris, score, lost }: { uris: string[]; score: number; lost?: boolean }) {
   const [index, setIndex] = useState(0);
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const x = e.nativeEvent.contentOffset.x;
@@ -462,14 +462,10 @@ function PhotoCarousel({ uris, location }: { uris: string[]; location: string })
           );
         })}
       </ScrollView>
-      <LinearGradient colors={['transparent', 'rgba(15,28,42,0.72)']} style={styles.heroFade}>
-        <Text style={styles.mapPlace}>{location}</Text>
-        {uris.length > 1 ? (
-          <Text style={styles.carouselCount}>
-            {index + 1}/{uris.length}
-          </Text>
-        ) : null}
-      </LinearGradient>
+      <View style={[styles.scoreBadge, lost && styles.scoreBadgeLost]}>
+        <Text style={styles.scoreBadgeValue}>{score}</Text>
+        <Text style={styles.scoreBadgeLabel}>Score</Text>
+      </View>
       {uris.length > 1 ? (
         <View style={styles.dots}>
           {uris.map((_, i) => (
@@ -506,6 +502,19 @@ function ActivityCard({
         ? [item.imageUri]
         : [];
   const showCarousel = uris.length > 0;
+  const lost = /review|lost/i.test(item.subtitle || '');
+
+  const secondaryStats: { label: string; value: string }[] =
+    item.size && item.weight
+      ? [
+          { label: 'Size', value: `${item.size}"` },
+          { label: 'Weight', value: `${item.weight} lb` },
+        ]
+      : item.fights != null
+        ? [{ label: 'Fights', value: String(item.fights) }]
+        : item.species
+          ? [{ label: 'Species', value: item.species.split(' ')[0]! }]
+          : [{ label: 'Place', value: item.location.split(',')[0]! }];
 
   return (
     <View style={styles.card}>
@@ -514,18 +523,19 @@ function ActivityCard({
           <Text style={styles.avatarText}>{athlete.initials}</Text>
         </View>
         <View style={styles.headerText}>
-          <Text style={styles.athleteName}>{athlete.name}</Text>
-          <Text style={styles.metaLine}>
-            {item.subtitle || 'Activity'} · {item.relativeTime}
+          <Text style={styles.athleteName} numberOfLines={1}>
+            {athlete.name} · {item.relativeTime}
+          </Text>
+          <Text style={styles.metaLine} numberOfLines={1}>
+            {item.location}
           </Text>
         </View>
       </View>
 
-      <Text style={styles.activityTitle}>{item.title}</Text>
       {item.caption ? <Text style={styles.caption}>{item.caption}</Text> : null}
 
       {showCarousel ? (
-        <PhotoCarousel uris={uris} location={item.location} />
+        <PhotoCarousel uris={uris} score={item.score} lost={lost} />
       ) : (
         <LinearGradient
           colors={heroColors(item.kind)}
@@ -533,30 +543,29 @@ function ActivityCard({
           end={{ x: 1, y: 1 }}
           style={styles.heroMap}
         >
-          <Text style={styles.mapPlace}>{item.location}</Text>
           <Text style={styles.mapKind}>
             {item.kind === 'trip' ? 'Outing' : item.kind === 'session' ? 'Session' : 'Fight'}
           </Text>
+          <View style={[styles.scoreBadge, lost && styles.scoreBadgeLost]}>
+            <Text style={styles.scoreBadgeValue}>{item.score}</Text>
+            <Text style={styles.scoreBadgeLabel}>Score</Text>
+          </View>
         </LinearGradient>
       )}
 
+      <Text style={styles.activityTitle}>{item.title}</Text>
+
       <View style={styles.stats}>
-        <Stat
-          label={item.kind === 'trip' ? 'Moving time' : 'Fight time'}
-          value={fmtElapsed(item.fightSeconds)}
-          mono
-        />
-        <Stat label="Score" value={String(item.score)} />
-        <Stat
-          label={item.fights != null ? 'Fights' : item.species ? 'Species' : 'Place'}
-          value={
-            item.fights != null
-              ? String(item.fights)
-              : item.species
-                ? item.species.split(' ')[0]!
-                : item.location.split(',')[0]!
-          }
-        />
+        <View style={styles.stat}>
+          <Text style={styles.statLabel}>{item.kind === 'trip' ? 'Moving time' : 'Fight'}</Text>
+          <Text style={styles.statValue}>{fmtElapsed(item.fightSeconds)}</Text>
+        </View>
+        {secondaryStats.map((s) => (
+          <View key={s.label} style={styles.stat}>
+            <Text style={styles.statLabel}>{s.label}</Text>
+            <Text style={styles.statValue}>{s.value}</Text>
+          </View>
+        ))}
       </View>
 
       <View style={styles.kudosRow}>
@@ -585,17 +594,6 @@ function ActivityCard({
           <Text style={styles.actionLabel}>Share</Text>
         </Pressable>
       </View>
-    </View>
-  );
-}
-
-function Stat({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <View style={styles.stat}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={[styles.statValue, mono && styles.mono]} numberOfLines={1}>
-        {value}
-      </Text>
     </View>
   );
 }
@@ -761,7 +759,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.35,
     color: colors.navy,
     paddingHorizontal: 16,
-    marginBottom: 6,
+    marginTop: 2,
+    marginBottom: 12,
   },
   caption: {
     fontFamily: fonts.bodyRegular,
@@ -778,11 +777,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     backgroundColor: colors.navy,
     overflow: 'hidden',
-  },
-  heroFade: {
-    ...StyleSheet.absoluteFill,
-    justifyContent: 'flex-end',
-    padding: 14,
+    position: 'relative',
   },
   heroMap: {
     width: '100%',
@@ -790,23 +785,42 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     justifyContent: 'flex-end',
     padding: 16,
-  },
-  mapPlace: {
-    fontFamily: fonts.displaySemiBold,
-    fontSize: 18,
-    color: '#FFF',
+    position: 'relative',
   },
   mapKind: {
     fontFamily: fonts.bodyMedium,
     fontSize: 12,
     color: 'rgba(255,255,255,0.78)',
-    marginTop: 2,
   },
-  carouselCount: {
-    fontFamily: fonts.monoRegular,
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.85)',
-    marginTop: 4,
+  scoreBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    minWidth: 44,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scoreBadgeLost: {
+    backgroundColor: 'rgba(255,255,255,0.94)',
+  },
+  scoreBadgeValue: {
+    fontFamily: fonts.displayBold,
+    fontSize: 20,
+    lineHeight: 22,
+    color: colors.copper,
+    letterSpacing: -0.3,
+  },
+  scoreBadgeLabel: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 8,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: colors.textSecondary,
+    marginTop: 3,
   },
   dots: {
     position: 'absolute',
@@ -831,22 +845,22 @@ const styles = StyleSheet.create({
   stats: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    gap: 12,
-    marginBottom: 10,
+    gap: 24,
+    marginBottom: 14,
   },
-  stat: { flex: 1 },
+  stat: {},
   statLabel: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 10,
-    letterSpacing: 0.5,
+    fontSize: 9,
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
     color: colors.textMuted,
-    marginBottom: 3,
   },
   statValue: {
-    fontFamily: fonts.displaySemiBold,
-    fontSize: 20,
+    fontFamily: fonts.monoRegular,
+    fontSize: 16,
     color: colors.navy,
+    marginTop: 4,
   },
   mono: {
     fontFamily: fonts.monoRegular,

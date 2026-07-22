@@ -11,6 +11,8 @@ interface Props {
   emptyLabel?: string;
   showMark?: boolean;
   markSize?: number;
+  /** Always fall back to a bundled fish photo, even if no real photo was added. */
+  alwaysShowPhoto?: boolean;
 }
 
 /**
@@ -24,8 +26,11 @@ export function CatchPhoto({
   emptyLabel = 'Photo not added',
   showMark,
   markSize,
+  alwaysShowPhoto,
 }: Props) {
-  const marker = item.imageUri || (item.photo ? defaultPhotoForCatch(item.id, item.species) : undefined);
+  const marker =
+    item.imageUri ||
+    (item.photo || alwaysShowPhoto ? defaultPhotoForCatch(item.id, item.species) : undefined);
   const source = resolveCatchImageSource(marker);
 
   return (

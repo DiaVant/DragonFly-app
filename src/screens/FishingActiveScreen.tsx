@@ -7,7 +7,6 @@ import { evaluateCoaching } from '../coaching/engine';
 import { evaluateDragAdvice, type DragAction } from '../coaching/dragAdvisor';
 import type { CoachingStateId } from '../coaching/types';
 import { fmtElapsed } from '../lib/format';
-import { HARDWARE_NAME } from '../lib/product';
 
 interface Props {
   location: string;
@@ -48,7 +47,7 @@ export function FishingActiveScreen({
   const { width: winW } = useWindowDimensions();
   const phone = winW < 430;
   const pad = phone ? spacing.screenNarrow : spacing.screen;
-  const gaugeSize = phone ? 108 : 120;
+  const gaugeSize = phone ? 152 : 172;
 
   const waiting = Boolean(awaitingEnd || stopping);
   const holdRef = useRef<{ id: CoachingStateId; sinceMs: number } | null>(null);
@@ -130,11 +129,14 @@ export function FishingActiveScreen({
                 : simulated
                   ? 'Practice'
                   : receiving
-                    ? HARDWARE_NAME
+                    ? 'Connected'
                     : 'Listening'
             }
             tone={waiting ? 'caution' : simulated ? 'info' : 'ok'}
           />
+          <Text style={styles.timer} accessibilityLabel={`Fight time ${fmtElapsed(elapsed)}`}>
+            {fmtElapsed(elapsed)}
+          </Text>
           <View style={styles.topRight}>
             {gearLabel ? (
               <Text style={styles.gear} numberOfLines={1}>
@@ -151,50 +153,41 @@ export function FishingActiveScreen({
           <CoachingCard coaching={coaching} />
         </View>
 
-        <View style={styles.mid}>
-          <View style={[styles.gaugeSlot, { width: gaugeSize, height: gaugeSize + 18 }]}>
-            <TensionGauge value={latest} baseline={baseline} size={gaugeSize} />
-          </View>
-          <View style={styles.side}>
-            <Text style={styles.timerLabel}>Fight time</Text>
-            <Text style={styles.timer} accessibilityLabel={`Elapsed ${fmtElapsed(elapsed)}`}>
-              {fmtElapsed(elapsed)}
-            </Text>
-
-            <View style={styles.liveTension} accessibilityLabel={`Current tension ${latest == null ? 'waiting' : latest.toFixed(1)}`}>
-              <Text style={styles.liveTensionLabel}>Live tension</Text>
-              <Text style={styles.liveTensionValue}>
-                {latest == null ? '—' : latest.toFixed(1)}
-              </Text>
-            </View>
-
-            <View
-              style={styles.dragBlock}
-              accessibilityLabel={`Drag coach ${dragLabel}. ${dragAdvice.reason}`}
-            >
-              <View style={styles.dragHeader}>
-                <Text style={styles.dragTitle}>Drag</Text>
-                <Text style={styles.dragValue}>{dragLabel}</Text>
-              </View>
-              <View style={styles.dragTrack}>
-                <Animated.View style={[styles.dragFill, { width: dragFillWidth }]} />
-                <Animated.View style={[styles.dragKnob, { left: dragKnobLeft }]} />
-              </View>
-              <Text style={styles.dragReason} numberOfLines={2}>
-                {dragAdvice.reason}
-              </Text>
-            </View>
-          </View>
+        <View style={styles.gaugeSlot}>
+          <TensionGauge
+            value={latest}
+            baseline={baseline}
+            size={gaugeSize}
+            label="Live tension"
+            accent="slateBlue"
+          />
         </View>
 
         <View style={styles.trendSlot}>
           <TensionChart
             samples={chartSamples}
             live
-            height={64}
-            label="Tension"
+            height={84}
+            label="Tension Over Time"
             caption={`${sampleCount} samples`}
           />
+        </View>
+
+        <View
+          style={styles.dragBlock}
+          accessibilityLabel={`Drag coach ${dragLabel}. ${dragAdvice.reason}`}
+        >
+          <View style={styles.dragHeader}>
+            <Text style={styles.dragTitle}>Drag</Text>
+            <Text style={styles.dragValue}>{dragLabel}</Text>
+          </View>
+          <View style={styles.dragTrack}>
+            <Animated.View style={[styles.dragFill, { width: dragFillWidth }]} />
+            <Animated.View style={[styles.dragKnob, { left: dragKnobLeft }]} />
+          </View>
+          <Text style={styles.dragReason} numberOfLines={2}>
+            {dragAdvice.reason}
+          </Text>
         </View>
       </View>
 
@@ -239,6 +232,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
     marginBottom: 12,
+    position: 'relative',
   },
   topRight: { flex: 1, alignItems: 'flex-end' },
   gear: {
@@ -253,61 +247,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
   },
+  timer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontFamily: fonts.monoRegular,
+    fontSize: 15,
+    lineHeight: 15,
+    color: colors.navy,
+  },
   coachSlot: {
     height: 148,
-    marginBottom: 14,
-  },
-  mid: {
-    height: 178,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
+    marginBottom: 20,
   },
   gaugeSlot: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  side: {
-    flex: 1,
-    minWidth: 0,
-    height: '100%',
-    justifyContent: 'center',
-  },
-  timerLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 11,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    color: colors.slateBlue,
-  },
-  timer: {
-    fontFamily: fonts.displayBold,
-    fontSize: 36,
-    lineHeight: 40,
-    color: colors.navy,
-    marginBottom: 8,
-    letterSpacing: -0.5,
-  },
-  liveTension: {
-    marginBottom: 8,
-  },
-  liveTensionLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 11,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    color: colors.slateBlue,
-  },
-  liveTensionValue: {
-    fontFamily: fonts.displaySemiBold,
-    fontSize: 28,
-    lineHeight: 32,
-    color: colors.copper,
-    letterSpacing: -0.4,
+    marginBottom: 20,
   },
   dragBlock: {
-    height: 78,
+    height: 88,
     gap: 5,
     backgroundColor: '#FFF9F4',
     borderRadius: radii.lg,
@@ -363,7 +323,8 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   trendSlot: {
-    height: 96,
+    height: 116,
+    marginBottom: 20,
   },
   footer: {
     width: '100%',

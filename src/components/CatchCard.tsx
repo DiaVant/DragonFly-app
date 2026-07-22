@@ -12,7 +12,8 @@ interface Props {
 }
 
 /**
- * Journey catch card: photo on top (score badge upper-right), details below.
+ * Journey catch card: location above the photo, score badge on the photo,
+ * species/size/weight enlarged below.
  */
 export function CatchCard({ item, onPress, compact }: Props) {
   return (
@@ -22,10 +23,21 @@ export function CatchCard({ item, onPress, compact }: Props) {
       accessibilityRole="button"
       accessibilityLabel={`${item.outcome === 'lost' ? "Didn't land" : 'Catch'}, ${item.species || 'unnamed'}, score ${item.score}`}
     >
+      <View style={styles.headerRow}>
+        <View style={styles.headerLocation}>
+          <View style={styles.headerDot} />
+          <Text style={[styles.headerLocationText, !item.location && styles.missing]} numberOfLines={1}>
+            {item.location || 'Location not added'}
+          </Text>
+        </View>
+        <Text style={styles.headerDate}>{item.date}</Text>
+      </View>
+
       <View style={[styles.photo, compact && styles.photoCompact]}>
         <CatchPhoto item={item} />
         <View style={[styles.scoreBadge, item.outcome === 'lost' && styles.scoreBadgeLost]}>
-          <Text style={styles.scoreBadgeText}>{item.score}</Text>
+          <Text style={styles.scoreBadgeValue}>{item.score}</Text>
+          <Text style={styles.scoreBadgeLabel}>Score</Text>
         </View>
       </View>
 
@@ -42,22 +54,22 @@ export function CatchCard({ item, onPress, compact }: Props) {
         )}
 
         <View style={styles.statsRow}>
-          <Text style={styles.meta}>{fmtElapsed(item.fightSeconds)}</Text>
-          <Text style={styles.metaDot}>·</Text>
-          <Text style={[styles.meta, !item.size && styles.missing]} numberOfLines={1}>
-            {item.size ? `${item.size}"` : 'Size —'}
-          </Text>
-          <Text style={styles.metaDot}>·</Text>
-          <Text style={[styles.meta, !item.weight && styles.missing]} numberOfLines={1}>
-            {item.weight ? `${item.weight} lb` : 'Wt —'}
-          </Text>
-        </View>
-
-        <View style={styles.footerRow}>
-          <Text style={[styles.footerLocation, !item.location && styles.missing]} numberOfLines={1}>
-            {item.location || 'Location not added'}
-          </Text>
-          <Text style={styles.footerDate}>{item.date}</Text>
+          <View style={styles.stat}>
+            <Text style={styles.statLabel}>Fight</Text>
+            <Text style={styles.statValue}>{fmtElapsed(item.fightSeconds)}</Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statLabel}>Size</Text>
+            <Text style={[styles.statValue, !item.size && styles.missing]}>
+              {item.size ? `${item.size}"` : '—'}
+            </Text>
+          </View>
+          <View style={styles.stat}>
+            <Text style={styles.statLabel}>Weight</Text>
+            <Text style={[styles.statValue, !item.weight && styles.missing]}>
+              {item.weight ? `${item.weight} lb` : '—'}
+            </Text>
+          </View>
         </View>
       </View>
     </Pressable>
@@ -74,6 +86,38 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   compact: {},
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  headerLocation: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  headerDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.sage,
+  },
+  headerLocationText: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: fonts.bodyRegular,
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  headerDate: {
+    fontFamily: fonts.monoRegular,
+    fontSize: 11,
+    color: colors.textMuted,
+  },
   photo: {
     width: '100%',
     height: 200,
@@ -87,24 +131,33 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     right: 10,
-    minWidth: 40,
-    height: 32,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    backgroundColor: colors.copper,
+    minWidth: 44,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.94)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
     ...shadows.cta,
   },
   scoreBadgeLost: {
-    backgroundColor: colors.slateBlue,
+    backgroundColor: 'rgba(255,255,255,0.94)',
   },
-  scoreBadgeText: {
+  scoreBadgeValue: {
     fontFamily: fonts.displayBold,
-    fontSize: 16,
-    color: '#FFF',
+    fontSize: 20,
+    lineHeight: 22,
+    color: colors.copper,
     letterSpacing: -0.3,
+  },
+  scoreBadgeLabel: {
+    fontFamily: fonts.bodyRegular,
+    fontSize: 8,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: colors.textSecondary,
+    marginTop: 3,
   },
   body: {
     paddingVertical: 14,
@@ -132,40 +185,25 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 4,
+    gap: 24,
+    marginTop: 6,
   },
-  meta: {
-    fontFamily: fonts.monoRegular,
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  metaDot: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 12,
+  stat: {},
+  statLabel: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 9,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
     color: colors.textMuted,
+  },
+  statValue: {
+    fontFamily: fonts.monoRegular,
+    fontSize: 16,
+    color: colors.navy,
+    marginTop: 4,
   },
   missing: {
     color: colors.missing,
     fontStyle: 'italic',
-  },
-  footerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 2,
-  },
-  footerLocation: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 12,
-    color: colors.textMuted,
-    fontFamily: fonts.bodyRegular,
-  },
-  footerDate: {
-    fontFamily: fonts.monoRegular,
-    fontSize: 11,
-    color: colors.textMuted,
   },
 });
