@@ -21,7 +21,7 @@ export function NoPhotoFill({ label, title, showMark, markSize = 40 }: NoPhotoFi
     <LinearGradient colors={['#EEF1F1', '#E6EAEB']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[StyleSheet.absoluteFill, styles.noPhoto]}>
       {showMark ? (
         <View style={{ width: markSize, height: markSize, opacity: 0.8 }}>
-          <DragonflyMark size={markSize} tone="dark" />
+          <DragonflyMark size={markSize} />
         </View>
       ) : null}
       {title ? <Text style={styles.title}>{title}</Text> : null}

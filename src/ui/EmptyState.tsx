@@ -15,7 +15,7 @@ export function EmptyState({ title, body, actionLabel, onAction }: EmptyProps) {
   return (
     <View style={styles.wrap} accessibilityRole="summary">
       <View style={styles.mark}>
-        <DragonflyMark size={88} tone="dark" opacity={0.45} />
+        <DragonflyMark size={88} opacity={0.45} />
       </View>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.body}>{body}</Text>

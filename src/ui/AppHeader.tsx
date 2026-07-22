@@ -25,7 +25,7 @@ export function AppHeader({
     return (
       <View style={styles.heroWrap}>
         <View style={styles.heroMark}>
-          <DragonflyMark size={56} tone={dark ? 'light' : 'dark'} />
+          <DragonflyMark size={56} />
         </View>
         <Text style={[styles.heroTitle, dark && styles.titleDark]} numberOfLines={1}>
           {title}
@@ -45,7 +45,7 @@ export function AppHeader({
       <View style={styles.left}>
         {showMark ? (
           <View style={styles.mark}>
-            <DragonflyMark size={32} tone={dark ? 'light' : 'dark'} />
+            <DragonflyMark size={32} />
           </View>
         ) : null}
         <View style={styles.text}>
