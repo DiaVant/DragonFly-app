@@ -69,8 +69,8 @@ export function FightLostScreen({
       >
         <StatusChip label={chipLabel} tone="caution" />
 
-        <Text style={styles.title}>The fish got away</Text>
-        <Text style={styles.lead}>Save the attempt — short numbers beat long excuses.</Text>
+        <Text style={styles.title}>That's okay</Text>
+        <Text style={styles.lead}>Save the attempt, track your improvement.</Text>
 
         <View style={styles.metaRow}>
           <Metric label="Fight" value={catchItem ? fmtElapsed(catchItem.fightSeconds) : '—'} mono />
@@ -93,7 +93,7 @@ export function FightLostScreen({
         ) : null}
 
         <View style={styles.fixBlock}>
-          <Text style={styles.fixLabel}>Fix next time</Text>
+          <Text style={styles.fixLabel}>Improvement Tip </Text>
           <Text style={styles.fixBody}>
             {reviewing
               ? '…'
@@ -200,17 +200,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   fixLabel: {
-    fontFamily: fonts.displaySemiBold,
-    fontSize: 18,
-    letterSpacing: -0.3,
-    color: colors.navy,
-    marginBottom: 6,
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: colors.slateBlue,
+    marginBottom: 4,
   },
   fixBody: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 17,
-    lineHeight: 24,
-    color: colors.text,
+    fontSize: 16,
+    lineHeight: 22,
+    color: colors.navy,
   },
   keepBlock: {
     marginBottom: 16,

@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { Screen, PrimaryButton, SecondaryButton, Metric, TensionChart } from '../ui';
 import { ScoreWings } from '../components/ScoreWings';
-import { colors, fonts, motion, radii, shadows } from '../theme';
+import { colors, fonts, motion, radii } from '../theme';
 import type { Catch } from '../types';
 import type { AiReviewStatus } from '../hooks/useDragonflyState';
 
@@ -45,31 +45,30 @@ export function CatchScoreScreen({
     catchItem?.recoveryIndex != null;
 
   return (
-    <Screen scroll>
-      <View style={styles.hero}>
-        <View style={styles.heroSurface}>
-          <View style={styles.scoreCluster}>
-            <View style={styles.wingsWrap} pointerEvents="none">
-              <ScoreWings size={260} />
-            </View>
-            {reviewing || !scoreReady ? (
-              <Text style={styles.scorePending}>···</Text>
-            ) : (
-              <Animated.View style={{ opacity: scoreOpacity, transform: [{ scale: scoreScale }], alignItems: 'center' }}>
-                <Text style={styles.score}>{scoreDisplay}</Text>
-              </Animated.View>
-            )}
-          </View>
+    <Screen scroll contentStyle={styles.screenContent}>
+      <Text style={styles.eyebrow}>Your catch score</Text>
+
+      <View style={styles.scoreCluster}>
+        <View style={styles.wingsWrap} pointerEvents="none">
+          <ScoreWings size={260} />
         </View>
+        {reviewing || !scoreReady ? (
+          <Text style={styles.scorePending}>···</Text>
+        ) : (
+          <Animated.View style={{ opacity: scoreOpacity, transform: [{ scale: scoreScale }], alignItems: 'center' }}>
+            <Text style={styles.score}>{scoreDisplay}</Text>
+          </Animated.View>
+        )}
       </View>
 
       <View style={styles.metrics}>
         <Metric label="Fight" value={catchItem ? formatFight(catchItem.fightSeconds) : '—'} mono />
+        <View style={styles.metricsDivider} />
         <Metric label="Location" value={catchItem?.location || '—'} />
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Fight read</Text>
+        <Text style={styles.sectionTitle}>Fight Summary</Text>
         {reviewing ? (
           <Text style={styles.body}>Scoring consistency, control, and recovery…</Text>
         ) : hasAiMetrics ? (
@@ -110,8 +109,8 @@ export function CatchScoreScreen({
         ) : null}
       </View>
 
-      <PrimaryButton label="Add catch details" onPress={onAddDetails} style={styles.primary} />
-      <SecondaryButton label="Save to Journey" onPress={onSkip} />
+      <PrimaryButton label="Add Catch Details" onPress={onAddDetails} style={styles.primary} />
+      <SecondaryButton label="Skip and save to Journey" onPress={onSkip} />
     </Screen>
   );
 }
@@ -132,46 +131,36 @@ function formatFight(seconds: number): string {
 }
 
 const styles = StyleSheet.create({
-  hero: {
-    borderRadius: radii.xl,
-    overflow: 'hidden',
-    marginTop: 8,
-    marginBottom: 22,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadows.brand,
+  screenContent: {
+    paddingTop: 32,
   },
-  heroSurface: {
-    backgroundColor: colors.surface,
-    minHeight: 340,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 28,
-    paddingHorizontal: 20,
+  eyebrow: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+    textAlign: 'center',
+    color: colors.textSecondary,
+    marginTop: 8,
   },
   scoreCluster: {
     width: 260,
     height: 260,
+    alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 12,
+    marginBottom: 4,
   },
   wingsWrap: {
     position: 'absolute',
   },
   score: {
     fontFamily: fonts.displayBold,
-    fontSize: 88,
-    lineHeight: 92,
+    fontSize: 84,
+    lineHeight: 88,
     color: colors.navy,
     letterSpacing: -2,
-  },
-  scoreLabel: {
-    fontFamily: fonts.bodySemiBold,
-    fontSize: 11,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    color: colors.copper,
-    marginTop: 8,
   },
   scorePending: {
     fontFamily: fonts.displayBold,
@@ -182,11 +171,19 @@ const styles = StyleSheet.create({
   },
   metrics: {
     flexDirection: 'row',
-    gap: 16,
+    alignItems: 'stretch',
+    gap: 22,
     marginBottom: 24,
+    paddingTop: 16,
     paddingBottom: 20,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderFaint,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderFaint,
+  },
+  metricsDivider: {
+    width: 1,
+    backgroundColor: colors.borderFaint,
   },
   section: { marginBottom: 24 },
   sectionTitle: {
@@ -249,13 +246,5 @@ const styles = StyleSheet.create({
     color: colors.navy,
   },
   chart: { marginTop: 16 },
-  journeyHint: {
-    fontFamily: fonts.bodyRegular,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginBottom: 14,
-  },
   primary: { marginBottom: 10 },
 });
